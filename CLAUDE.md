@@ -14,6 +14,7 @@ Commands: `npm run dev` · `npm run build` · `npm test` (vitest/jsdom) · `npm 
 - `src/validation/` — Zergggy core-set + agreement scoring
 - `src/personalization/` — user match-history insight
 - `src/components/` — UI components
+- `src/data/` — runtime snapshot loaders (`fetch('/data/**')`); no zergggy access, ever
 - `src/test/` — vitest suites
 - `e2e/` — Playwright specs (if present)
 

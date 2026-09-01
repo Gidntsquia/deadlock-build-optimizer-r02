@@ -3,7 +3,10 @@
 
 export interface StatLine {
   key: string
-  value: string
+  // Usually a numeric string, but the snapshot's `properties` extraction
+  // sometimes hands back a display-metadata object instead of a raw value
+  // (see PROGRESS.md) — kept loose so callers must handle both.
+  value: unknown
 }
 
 export interface Item {

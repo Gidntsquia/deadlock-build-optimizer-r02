@@ -1,5 +1,6 @@
 import type { Build } from '../generator'
 import { computeCoreSet } from './coreSet'
+import { fetchZergMatches } from './loadMatches'
 import { buildOrderPreferences } from './orderPreferences'
 import type { CoreSetResult, ValidationReport, ZergMatch } from './types'
 
@@ -66,4 +67,15 @@ export function validateBuildAgainstMatches(build: Build, matches: ZergMatch[]):
   const coreItemIds = new Set(coreSet.items.keys())
   const orderPreferences = buildOrderPreferences(matches, coreItemIds)
   return validateBuild(build, coreSet, orderPreferences)
+}
+
+// UI entry point (T5): fetches the held-out matches and validates every
+// build in one call, keyed by build name, so callers outside this directory
+// never need to know the held-out data's source.
+export async function validateBuildsAgainstHeldOut(builds: Build[]): Promise<Map<string, ValidationReport>> {
+  const matches = await fetchZergMatches()
+  const coreSet = computeCoreSet(matches)
+  const coreItemIds = new Set(coreSet.items.keys())
+  const orderPreferences = buildOrderPreferences(matches, coreItemIds)
+  return new Map(builds.map((build) => [build.name, validateBuild(build, coreSet, orderPreferences)]))
 }

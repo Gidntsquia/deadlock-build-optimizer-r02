@@ -13,13 +13,6 @@
 
 ## Open tickets
 
-- [ ] **T5 — Mobile-first interactive UI**
-  Goal: the full app per spec, designed at 390×844.
-  Files: src/App.tsx, src/components/**, styles.
-  Spec: hero picker (all active heroes, Infernus default); per build: name, buy list grouped early/mid/late with cost + running soul total, item rows with shop image + Zergggy core/not-core badge and per-build agreement % (validation shown for Infernus; other heroes render builds without the validation report); ability level-up sequence with real ability names; tapping any item opens a detail card (image, cost, tier, slot type, stat lines, active/passive text from snapshot tooltip data); personalization insight line. No horizontal scroll at 390px; tap targets ≥40 px; desktop = centered column (~max-width 480px).
-  Acceptance: jsdom tests boot the real `<App/>`: Infernus default with ≥2 builds of ≥12 items; tapping an item shows its detail card with cost/tier/slot; selecting 3 other heroes renders builds + ability orders without errors; badges and agreement % present for Infernus.
-  Verify: `npm run build && npm test`
-
 - [ ] **T6 — Real-browser verification pass**
   Goal: verify what jsdom structurally can't see.
   Files: e2e/** (Playwright) or documented audit in PROGRESS.md.
