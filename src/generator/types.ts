@@ -51,6 +51,10 @@ export interface AbilityOrderStat {
 export interface HeroAnalytics {
   hero_id: number
   item_stats: ItemStat[]
+  // Same shape as item_stats, pre-filtered upstream (fetch-data.mjs) to
+  // matches with average badge >= high_badge_min (Phantom+; see T9/README).
+  high_badge_item_stats: ItemStat[]
+  high_badge_min: number
   ability_order_stats: AbilityOrderStat[]
 }
 

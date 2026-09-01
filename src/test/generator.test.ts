@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { generateBuilds } from '../generator'
 import type { Hero, HeroAnalytics, Item } from '../generator'
+import { HIGH_BADGE_MIN_SAMPLE, HIGH_BADGE_WEIGHT, blendHighBadgeStat, dampedWinRate, highBadgeBlendWeight, scoreItem } from '../generator/score'
 
 const DATA_DIR = join(process.cwd(), 'public/data')
 const META_PATH = join(DATA_DIR, 'meta.json')
@@ -90,5 +91,79 @@ describe.skipIf(!hasSnapshots)('generator', () => {
 describe.skipIf(hasSnapshots)('generator (no data yet)', () => {
   it('skips cleanly when public/data/meta.json is absent', () => {
     expect(hasSnapshots).toBe(false)
+  })
+})
+
+// T9: high-elo (Phantom+) weighting of win-rate/usage. Pure fixtures, not
+// snapshot-dependent, so these always run.
+describe('scoreItem high-elo blend', () => {
+  const fixtureItem: Item = {
+    id: 1,
+    class_name: 'fixture_item',
+    name: 'Fixture Item',
+    cost: 1000,
+    item_tier: 2,
+    item_slot_type: 'weapon',
+    image: null,
+    stat_lines: [],
+    active_description: null,
+    passive_description: null,
+  }
+
+  const baseInputs = {
+    item: fixtureItem,
+    meanWinRate: 0.5,
+    maxOverallMatches: 1000,
+    maxHighMatches: 1000,
+    maxValuePerSoul: 0, // 0 disables the value-per-soul term so only win-rate/usage differ
+    archetype: 'weapon' as const,
+  }
+
+  it('an item whose high-elo win rate beats its overall win rate outscores the reverse case (adequate sample)', () => {
+    // Item A: strong overall (90%), weak at high elo (10%).
+    const scoreA = scoreItem({
+      ...baseInputs,
+      overallWins: 900,
+      overallMatches: 1000,
+      highWins: 100,
+      highMatches: 1000, // >= HIGH_BADGE_MIN_SAMPLE
+    })
+    // Item B: the mirror image — weak overall (10%), strong at high elo (90%).
+    const scoreB = scoreItem({
+      ...baseInputs,
+      overallWins: 100,
+      overallMatches: 1000,
+      highWins: 900,
+      highMatches: 1000,
+    })
+    expect(scoreB).toBeGreaterThan(scoreA)
+  })
+
+  it('below HIGH_BADGE_MIN_SAMPLE, the blend degrades smoothly toward overall-only stats', () => {
+    const overall = { wins: 100, matches: 1000 } // overall win rate 10%
+    const high = { wins: 4, matches: 5 } // high-elo win rate 80%, tiny sample
+
+    const weight = highBadgeBlendWeight(high.matches)
+    const expectedWeight = HIGH_BADGE_WEIGHT * (high.matches / HIGH_BADGE_MIN_SAMPLE)
+    expect(weight).toBeCloseTo(expectedWeight, 10)
+    expect(weight).toBeGreaterThan(0)
+    expect(weight).toBeLessThan(HIGH_BADGE_WEIGHT)
+
+    const blended = blendHighBadgeStat(overall, high, 1000, 1000)
+    const overallOnlyRate = overall.wins / overall.matches
+    // Nudged toward the high-elo rate but still close to the overall rate.
+    expect(blended.winRate).toBeGreaterThan(overallOnlyRate)
+    expect(blended.winRate).toBeLessThan(overallOnlyRate + 0.05)
+
+    // No high-elo evidence at all => exactly the overall rate (full fallback).
+    const noHighEvidence = blendHighBadgeStat(overall, { wins: 0, matches: 0 }, 1000, 1000)
+    expect(noHighEvidence.winRate).toBeCloseTo(overallOnlyRate, 10)
+  })
+
+  it('dampedWinRate shrinks low-sample blended rates toward the hero mean, same as before blending existed', () => {
+    const meanWinRate = 0.5
+    const damped = dampedWinRate(0.9, 1, meanWinRate) // 1 effective match, near-mean K=50 damping
+    expect(damped).toBeGreaterThan(meanWinRate)
+    expect(damped).toBeLessThan(0.6)
   })
 })

@@ -60,10 +60,10 @@ if a phase runs short, and capping at 2 activated-ability items per build (`Abil
 the only per-item activation signal in this snapshot). The composite item score:
 
 ```
-score = 0.35 * confidenceDampedWinRate   (shrink raw win rate toward the hero's mean win rate,
-                                            as if padded with 50 extra matches at that mean —
-                                            damps low-sample items without ignoring them)
-      + 0.25 * usageRate                  (matches played / the hero's most-played item's matches)
+score = 0.35 * confidenceDampedWinRate   (shrink the BLENDED win rate below toward the hero's mean
+                                            win rate, as if padded with 50 extra matches at that
+                                            mean — damps low-sample items without ignoring them)
+      + 0.25 * usageRate                  (the BLENDED usage ratio below)
       + 0.25 * valuePerSoul               (sum of |non-mechanics stat values| / cost, normalized
                                             against the item pool's max)
       + 0.15 * archetypeBias              (1.0 own-archetype slot, 0.6 vitality, 0.2 off-archetype)
@@ -72,6 +72,37 @@ score = 0.35 * confidenceDampedWinRate   (shrink raw win rate toward the hero's 
 Ties break on ascending item id — the generator is a pure function of its inputs (no randomness, no
 clock reads), so re-running it on an unchanged snapshot always yields a deep-equal result
 (`generator.test.ts` asserts this directly).
+
+### High-elo weighting (Phantom+)
+
+Each hero's win rate and usage prefer high-elo evidence. `fetch-data.mjs` pulls a second,
+pre-filtered stat set per hero — `high_badge_item_stats` — restricted to matches with an average
+lobby badge ≥ 81 (Phantom+; recorded as `high_badge_min` in each analytics file and in
+`meta.json`). Per item, the overall stats (`item_stats`, all skill levels) and the high-badge stats
+are blended **before** the confidence damping above is applied:
+
+```
+weight = 0.75 * min(item.high_badge_matches / 100, 1)   // ramps 0 -> 0.75 as high-badge
+                                                          // sample grows from 0 to 100 matches,
+                                                          // flat at 0.75 above 100
+blendedWinRate = weight * highBadgeWinRate + (1 - weight) * overallWinRate
+blendedUsage   = weight * (item.high_badge_matches / hero's max high-badge matches)
+               + (1 - weight) * (item.overall_matches / hero's max overall matches)
+```
+
+At ≥100 high-badge matches an item's win rate/usage is a fixed 75%/25% blend toward the high-elo
+sample (≥70% per spec); below that, the high-badge weight ramps down linearly to 0, so a handful of
+high-elo matches nudges the blend only slightly and zero high-elo matches falls back to pure overall
+stats — a smooth degrade, not a hard cutoff. The confidence-damping formula is unchanged, but now
+takes the blended rate and a correspondingly blended "effective matches" figure (same weight applied
+to the two raw sample sizes) instead of the item's raw overall wins/matches.
+`src/generator/score.ts`'s `blendHighBadgeStat`/`dampedWinRate`/`scoreItem` implement this exactly;
+`generator.test.ts`'s "scoreItem high-elo blend" suite covers both the "beats the reverse case" and
+"degrades toward overall-only below the sample floor" behaviors with fixtures.
+
+Checked against the held-out Zergggy agreement score (never tuned toward it): Infernus's Weapon and
+Spirit builds score identically (35% / 51%) before and after this change — the blend didn't move
+the top-ranked items enough to change either build's item selection for this particular hero/snapshot.
 
 Ability level-up order unlocks the hero's 4 named abilities in listed order (steps 1–4), then
 upgrades them round-robin twice more (steps 5–12) — the snapshot's

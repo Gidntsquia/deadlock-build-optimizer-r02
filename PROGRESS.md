@@ -1,5 +1,14 @@
 # PROGRESS — newest first, ≤25 lines per entry; past ~1,500 lines rotate all but newest ~10 entries verbatim to PROGRESS_ARCHIVE.md
 
+## 2026-09-01T17:24Z — T9 done: high-elo (Phantom+) weighting of win-rate/usage
+- `HeroAnalytics` gained `high_badge_item_stats`/`high_badge_min` (already-committed data, no fetch needed). New `blendHighBadgeStat` in score.ts: `weight = 0.75 * min(highMatches/100, 1)` (ramps 0→0.75 as high-badge sample grows 0→100 matches, flat above), blends win rate and usage ratio as `weight*high + (1-weight)*overall`. Confidence damping (K=50 shrink-to-mean, unchanged formula) now applies to the blended rate + a same-weight-blended "effective matches" figure, in that order (blend then damp, as spec'd).
+- `scoreItem`'s inputs renamed to `overall*`/`high*` pairs; `index.ts` threads a second stats-by-id map + `maxHighBadgeItemMatches` through. `loaders.ts`/`setup.ts` untouched (generic JSON passthrough, no change needed).
+- New fixture tests (generator.test.ts, not snapshot-gated): item with weak-overall/strong-high-elo outscores its mirror image when high-badge sample is adequate (1000 matches); a 5-high-badge-match item's blend stays within 0.05 of pure-overall (smooth degrade); zero high-badge evidence collapses to exactly overall.
+- HELD-OUT FINDING (not tuned toward): re-ran Infernus's real builds against Zergggy before/after via a throwaway test (deleted after) — agreement % unchanged both ways, Weapon 35% / Spirit 51%. Blend didn't reorder Infernus's top items enough to matter for this snapshot.
+- README's new "High-elo weighting (Phantom+)" section documents the exact formulas + the finding above.
+- Verified: `npm run build` clean; `npx vitest run` 39 passed/2 skipped (was 36/2); `npm run gate:heldout` OK (5 files, zero zergggy references — only reads `high_badge_item_stats`).
+- T9 archived to GOALS_ARCHIVE.md. Next: T10 (in-game build-card restyle) — first UI-heavy ticket, needs DESIGN.md tokens (already committed).
+
 ## 2026-09-01T17:17Z — T8 done: item detail hides zero-value stat lines
 - FOUND FIRST: this container's local `main` was 18 commits behind detached HEAD (same recurring class of issue as prior fires) — `git checkout main && git merge --ff-only <HEAD>`; turned out `origin/main` was already at that commit, only the local ref was stale, so nothing to push for that step.
 - Added `isMeaningfulStatLine(value)` to ItemDetailSheet.tsx: nonzero numbers/numeric strings kept; unit-suffixed strings like "7m" parsed via `parseFloat` (`Number("7m")` is NaN) so they're correctly kept when nonzero, hidden when "0m"; a real snapshot value of literally `"asdasd"` (junk, no label) is hidden; a display-metadata object (`{label,...}`, the known upstream gap where the numeric value is missing) is kept whenever its label is non-empty, since we can't know its zero-ness otherwise.

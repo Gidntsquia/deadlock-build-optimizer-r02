@@ -13,14 +13,6 @@
 
 ## Open tickets
 
-- [ ] **T9 — weight scoring toward high-elo players (user request 2026-09-01)**
-  - Goal: the generator's win-rate and usage components prefer high-elo evidence. Data is ALREADY COMMITTED (orchestrator fetched it locally — do NOT attempt API calls): each `public/data/analytics/hero-N.json` now has `high_badge_item_stats` (same shape as `item_stats`: `{item_id, wins, matches}`) filtered to matches with average badge ≥ 81 (Phantom+; `high_badge_min` field + `meta.json.high_badge_min` record the cutoff). Infernus: 138 high-badge items vs 156 overall, ~1.15M item-match rows.
-  - Spec: per item, when its high-badge sample is large enough (matches ≥ a documented MIN_SAMPLE constant, suggest 100), compute win-rate/usage from a blend weighted ≥70% toward the high-badge stats (suggest 0.75/0.25); below MIN_SAMPLE, fall back smoothly to overall stats (a sample-proportional blend is fine — document the exact formula in code + README). Keep the existing confidence damping (shrink-to-hero-mean K=50) applied AFTER blending. Determinism and stable tie-breaks unchanged.
-  - HELD-OUT REMINDER: if the Zergggy agreement % moves, record the new number in PROGRESS.md as a finding — do NOT tune the blend to raise it.
-  - Files: `src/generator/` (types/score/index), `src/data/loaders.ts` + `src/test/setup.ts` only if the analytics type needs the new field threaded, `src/test/generator.test.ts`, README's formula section.
-  - Acceptance: (1) fixture test: an item whose high-elo win rate beats its overall win rate outscores the reverse case when samples are adequate; (2) fixture test: item below MIN_SAMPLE high-badge matches degrades toward overall-only scoring; (3) determinism test still green; (4) all 38 heroes still generate ≥2 builds/≥12 items (existing tests); (5) README documents the blend formula + Phantom+ cutoff.
-  - Verify: `npm run build` · `npm test` · `npm run gate:heldout`.
-
 - [ ] **T10 — restyle build display to match Deadlock's in-game build browser (user request 2026-09-01, from a reference screenshot)**
   - Goal: builds render like the in-game build editor. The reference (user-provided screenshot of the real game; fires can't see it — this spec is authoritative):
     - Each game phase is a titled horizontal section panel — "Early Game", "Mid to Late Game" — on a parchment/tan panel (`#b8a98c`-ish, subtle texture ok) over the app's dark background. Map our early→"Early Game", mid+late→"Mid to Late Game" or keep three sections with in-game-style titles — your call, document it. A third lighter-blue-tinted section titled "Testing" with an "OPTIONAL" chip is how the game shows experimental items — if we have leftover/near-miss items available cheaply, use it; otherwise omit (do NOT invent data for it).

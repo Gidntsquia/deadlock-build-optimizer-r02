@@ -1,5 +1,5 @@
 import { buildAbilityOrder } from './abilityOrder'
-import { heroMeanWinRate, maxItemMatches, scoreItem } from './score'
+import { heroMeanWinRate, maxHighBadgeItemMatches, maxItemMatches, scoreItem } from './score'
 import { isActiveItem, statValuePerSoul } from './statUtils'
 import type { Archetype, Build, BuildItemEntry, BuildPhase, Hero, HeroAnalytics, Item, ItemStat } from './types'
 
@@ -24,20 +24,26 @@ function buildForArchetype(
   hero: Hero,
   items: Item[],
   itemStatsById: Map<number, ItemStat>,
+  highBadgeStatsById: Map<number, ItemStat>,
   meanWinRate: number,
   maxMatches: number,
+  maxHighMatches: number,
   maxValuePerSoul: number,
   archetype: Archetype,
 ): Build {
   const scored = items
     .map((item) => {
       const stat = itemStatsById.get(item.id)
+      const highStat = highBadgeStatsById.get(item.id)
       const score = scoreItem({
         item,
-        wins: stat?.wins ?? null,
-        matches: stat?.matches ?? null,
+        overallWins: stat?.wins ?? null,
+        overallMatches: stat?.matches ?? null,
+        highWins: highStat?.wins ?? null,
+        highMatches: highStat?.matches ?? null,
         meanWinRate,
-        maxMatches,
+        maxOverallMatches: maxMatches,
+        maxHighMatches,
         maxValuePerSoul,
         archetype,
       })
@@ -99,11 +105,23 @@ function buildForArchetype(
 // abilityOrder.ts for the level-up sequence fallback.
 export function generateBuilds(hero: Hero, items: Item[], analytics: HeroAnalytics): Build[] {
   const itemStatsById = new Map(analytics.item_stats.map((s) => [s.item_id, s]))
+  const highBadgeStatsById = new Map(analytics.high_badge_item_stats.map((s) => [s.item_id, s]))
   const meanWinRate = heroMeanWinRate(analytics)
   const maxMatches = maxItemMatches(analytics)
+  const maxHighMatches = maxHighBadgeItemMatches(analytics)
   const maxValuePerSoul = items.reduce((max, item) => Math.max(max, statValuePerSoul(item)), 0)
 
   return (['weapon', 'spirit'] as const).map((archetype) =>
-    buildForArchetype(hero, items, itemStatsById, meanWinRate, maxMatches, maxValuePerSoul, archetype),
+    buildForArchetype(
+      hero,
+      items,
+      itemStatsById,
+      highBadgeStatsById,
+      meanWinRate,
+      maxMatches,
+      maxHighMatches,
+      maxValuePerSoul,
+      archetype,
+    ),
   )
 }
