@@ -98,3 +98,13 @@
 - User wants exactly one good build per hero. T13 inserted between T9 and T10 (queue position, not ticket number, is execution order) so T10's restyle lands on the single-build layout.
 - Pick rule pinned in the ticket: generator-internal composite score only, stable tie-breaks — NEVER pick using Zergggy agreement (held-out rule). Queue order now: T8 → T9 → T13 → T10 → T11 → T12.
 
+
+## 2026-09-01T19:20Z — T15 done: real per-hero ability order from analytics
+- Local `main` was stale (fast-forwarded from `origin/main` at d35ff02 — same recurring HEAD-detached-container pattern as prior fires; no push needed for that step, matches T8's note).
+- `abilityOrder.ts` rewritten: `buildAbilityOrder(abilities, ability_order_stats, high_badge_ability_order_stats)` picks the highest-matches row (tie: wins, then ascending joined sequence), prefers the high-badge source once its top row clears 100 matches, maps sequence→steps (first occurrence=unlock, later=upgrade), falls back to the existing round-robin when no usable row or an id resolves outside the hero's 4 abilities (kept, test-covered). `index.ts` computes it once per hero and threads it into both archetype candidates. `types.ts`: `sequence: number[] | null`, added `HeroAnalytics.high_badge_ability_order_stats`.
+- JUDGMENT CALL: ticket text said "Infernus, hero_id 15" — real data says Infernus is hero_id 1 (15 is Bebop); used the correct id, documented in code/test comments rather than blocking.
+- For Infernus: high-badge top row has matches=2948 (≥100), Afterburn gets 3 real upgrades (◆1/◆2/◆5) unlocking first — confirmed against the committed snapshot.
+- Tests: 2 new snapshot-backed (pairwise-different sequences across 3 heroes; Infernus's build matches its chosen source's top row exactly), 5 new fixture tests for `buildAbilityOrder` (unlock/upgrade derivation, unknown-id fallback, empty-stats fallback, high-badge floor gate, tie-break order), `app.test.tsx`'s panel test rewritten to derive expectations from the real snapshot instead of hardcoded round-robin, `snapshots.test.ts` +1 line. README's ability-order paragraph updated, stale "sequence is null" known-gap bullet removed.
+- Had to reword one code comment (said "Zergggy") — `gate:heldout`'s regex scans comments too, not just code references.
+- Verified: `npm run build` clean; `npx vitest run` 55 passed/2 skipped (57 total); `npm run gate:heldout` OK (5 files); `npx playwright test` 5/5.
+- T15 archived to GOALS_ARCHIVE.md, committed+pushed (215ddf5). Budget allowed only this one ticket this fire (fresh `npm ci` + full e2e run ate the rest). Next: T16 (remove personalization block) or T18 (buyable-build chain rules) — both unblocked, data committed.
