@@ -1,6 +1,6 @@
 # PROGRESS — newest first, ≤25 lines per entry; past ~1,500 lines rotate all but newest ~10 entries verbatim to PROGRESS_ARCHIVE.md
 
-## 2026-09-01T13:00Z — orchestrator: project REOPENED — user requested T8/T9/T10, routine re-enabled
+## 2026-09-01T16:55Z — orchestrator: project REOPENED — user requested T8/T9/T10, routine re-enabled
 - User asked for: (T8) item detail shows only meaningful stats, no zero rows; (T9) scoring weighted toward high-elo players; (T10) build display restyled like the in-game build browser (user supplied a reference screenshot — the T10 ticket text is the authoritative spec since fires can't see it).
 - T9 data prep done locally (orchestrator, same egress-workaround pattern as T2b): fetch-data.mjs now also pulls per-hero item-stats at `min_average_badge=81` (Phantom+ — measured: keeps 151/155 Infernus items & ~1.15M rows; Ascendant+ collapses to ~25k rows) into `high_badge_item_stats`; full snapshot refreshed and committed, public/data = 6.9MB.
 - Verified locally after refresh: `npm run build` clean, `npm test` 30 passed/2 skipped, `npm run gate:heldout` OK.
