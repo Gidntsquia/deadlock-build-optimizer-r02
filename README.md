@@ -204,16 +204,19 @@ plain step list with the game's own timeline layout: a navy panel (`--panel-navy
 row (`--row-navy`) per ability, in hero order, each starting with a 40px icon tile (the ability's
 real image from `heroes.json`; a broken/missing image degrades to the ability's initial letter on a
 `--badge-khaki` tile, same `onError`-state pattern as the item cards). The generated ability sequence
-(`build.ability_order`, unlocks then 2 upgrade rounds — see the generator section above) maps onto N
+(`build.ability_order`, from real per-hero analytics — see the generator section above) maps onto N
 shared columns across every row, so a spend at step k always renders in column k regardless of which
 row it belongs to — markers only align vertically when spends are genuinely simultaneous, exactly
 like the in-game panel. **Unlock** steps render as a violet rotated-square diamond (`--diamond-violet`,
 no number); **upgrade** steps render as a khaki pill showing `◆` + the in-game AP cost for that
-upgrade's index (0→1, 1→2, 2→5 — looked up by position, not hardcoded to "2 upgrades exist": the
-generator currently emits exactly 2 upgrades/ability, so ◆5 never appears yet, but the panel already
-supports a 3rd). The row content scrolls horizontally inside the panel (`overflow-x: auto`) if the
-column count doesn't fit 390px — the page itself never scrolls horizontally, verified in both the
-jsdom suite and the Playwright mobile spec.
+upgrade's index (0→1, 1→2, 2→5 — looked up by position; the third upgrade tier, `◆5`, does appear for
+heroes whose real sequence includes it). Columns are 16px wide with a 1px gap (T21) — sized so the
+longest real sequence observed across all 38 heroes (15 steps, Infernus's) fits inside the panel at
+390px with no horizontal scrollbar; the row content still scrolls horizontally inside the panel
+(`overflow-x: auto`) as a fallback for a hypothetical longer sequence or a narrower viewport, in which
+case each row's navy background is sized to its own full content width (`width: max-content`, not
+stretched to the visible viewport) so it never stops short of the scrolled content. The page itself
+never scrolls horizontally, verified in both the jsdom suite and the Playwright mobile spec.
 
 Runtime data loads via `fetch('/data/**')` against the static snapshot files (`src/data/loaders.ts`
 for items/heroes/analytics/personal matches; `src/validation/loadMatches.ts` for the held-out fetch,

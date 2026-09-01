@@ -6,7 +6,11 @@ interface AbilityOrderPanelProps {
   abilityOrder: AbilityLevelStep[]
 }
 
-const COLUMN_WIDTH = 26
+// T21: shrunk from 26/2 so a full 15-step sequence (the real observed max
+// across all 38 heroes, Infernus included) fits at 390px with no horizontal
+// scrollbar — see styles.css's matching `.ability-order-panel__track` gap.
+const COLUMN_WIDTH = 16
+const COLUMN_GAP = 1
 
 // In-game AP cost by upgrade index (0-based) for a given ability, derived
 // from position rather than hardcoded to however many upgrades exist today —
@@ -50,7 +54,10 @@ export default function AbilityOrderPanel({ abilities, abilityOrder }: AbilityOr
               <AbilityIcon ability={ability} />
               <div
                 className="ability-order-panel__track"
-                style={{ gridTemplateColumns: `repeat(${totalSteps}, ${COLUMN_WIDTH}px)`, width: totalSteps * COLUMN_WIDTH }}
+                style={{
+                  gridTemplateColumns: `repeat(${totalSteps}, ${COLUMN_WIDTH}px)`,
+                  width: totalSteps * COLUMN_WIDTH + (totalSteps - 1) * COLUMN_GAP,
+                }}
               >
                 {steps.map((step) => {
                   if (step.kind === 'unlock') {

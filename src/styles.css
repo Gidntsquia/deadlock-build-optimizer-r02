@@ -359,6 +359,13 @@ h3 {
   background: var(--row-navy);
   border-radius: 8px;
   padding: 4px;
+  /* T21: fit-to-content (not stretched to the scroll container's visible
+     width) so the navy background always spans the row's full scrollable
+     width, including whatever's still off-screen when this does overflow
+     (a very long sequence, or a narrow desktop window) — min-width covers
+     the opposite case, a row narrower than the panel. */
+  width: max-content;
+  min-width: 100%;
 }
 
 .ability-order-panel__icon {
@@ -388,7 +395,7 @@ h3 {
 .ability-order-panel__track {
   display: grid;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   flex: none;
 }
 
@@ -396,16 +403,16 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 20px;
-  font-size: 0.65rem;
+  height: 18px;
+  font-size: 0.55rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
 .ability-order-panel__marker--unlock::before {
   content: '';
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
   background: var(--diamond-violet);
   transform: rotate(45deg);
 }
@@ -413,8 +420,8 @@ h3 {
 .ability-order-panel__marker--upgrade {
   background: var(--badge-khaki);
   color: var(--ink);
-  border-radius: 4px;
-  padding: 1px 4px;
+  border-radius: 3px;
+  padding: 0 1px;
   white-space: nowrap;
 }
 

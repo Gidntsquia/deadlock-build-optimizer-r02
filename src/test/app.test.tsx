@@ -56,6 +56,12 @@ describe.skipIf(!hasSnapshots)('App', () => {
     // Every hero has exactly 4 abilities.
     expect(rows.length).toBe(4)
 
+    // T21: every step of the real sequence must render as a marker somewhere
+    // in the DOM — none dropped by the column-width shrink that removed the
+    // panel's horizontal scrollbar.
+    const totalMarkers = document.querySelectorAll('.ability-order-panel__marker').length
+    expect(totalMarkers).toBe(expectedSequence.length)
+
     // Row order follows hero.abilities order; each row's markers must match
     // that ability's columns/kinds in the resolved real sequence (first
     // occurrence = unlock, later occurrences = upgrade, AP costs 1/2/5).

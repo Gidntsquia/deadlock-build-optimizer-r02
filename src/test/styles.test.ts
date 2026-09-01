@@ -29,3 +29,15 @@ describe('styles.css token discipline (T12)', () => {
     expect(css).toMatch(/:focus-visible\s*{[^}]*outline:\s*2px solid var\(--header-teal\)/)
   })
 })
+
+// T21 acceptance check: the ability-order row must size to its own content
+// (not stretch to the scroll container's visible width), so the navy
+// row-bar background always spans the full scrollable width rather than
+// stopping short once the row's content overflows.
+describe('ability-order-panel row sizing (T21)', () => {
+  it('sizes rows to their content width, not the visible scroll viewport', () => {
+    const rowBlock = css.match(/\.ability-order-panel__row\s*{[^}]*}/)?.[0] ?? ''
+    expect(rowBlock).toMatch(/width:\s*max-content/)
+    expect(rowBlock).toMatch(/min-width:\s*100%/)
+  })
+})

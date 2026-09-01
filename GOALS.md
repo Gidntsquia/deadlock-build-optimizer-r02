@@ -14,15 +14,6 @@
 
 ## Open tickets
 
-- [ ] **T21 — Ability Point Order panel: no scrollbar, full-width row bars (user bug report 2026-09-01)**
-  - User dislikes the horizontal scrollbar on the ability panel, and scrolling reveals the navy row bars stop short of the content's full width.
-  - Goal: at 390×844 the whole ~15-column sequence FITS inside the panel with no horizontal scrollbar — shrink the per-column width/markers/tiles as needed (columns can go ~20px; unlock diamonds and AP pills scale down; ability icon tiles may shrink or the label column narrows). Do not clip or drop steps, do not reintroduce page-level scroll.
-  - Row-bar bug (fix regardless): each `--row-navy` bar must span the panel content's full scrollable width, not just the visible viewport (size backgrounds on the scroll-content element, e.g. width: max-content/min-width: 100% on the row, not the scroll container). If any viewport still overflows (very long sequences, narrow desktop windows), bars must extend to the end of the scrolled content.
-  - Files: `src/components/AbilityOrderPanel.tsx` + its styles, `src/test/app.test.tsx`, `e2e/mobile.spec.ts`.
-  - Acceptance: (1) e2e at 390×844: ability panel `scrollWidth <= clientWidth` (no horizontal overflow) with a full 15-step sequence; (2) all 15 steps present in the DOM; (3) jsdom or e2e check that row bars are laid out on the full-width content element (assert the CSS structure); (4) all suites green.
-  - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
-
-
 - [ ] **T23 — synergy + affinity scoring, heavier usage/win-rate weighting, full re-tune (user request 2026-09-01T20:04Z: "agreement still far too low; factor in item usage and win rates more; consider character play styles and items that synergize with their abilities")**
   - Data (committed by orchestrator 2026-09-01): each `analytics/hero-N.json` gains `item_pair_stats` — top 200 Phantom+ item PAIRS by matches, `{ items: [idA, idB], wins, matches }` — which items win TOGETHER on this hero. `items.json` gains `roster_usage_share: number|null` — the roster-average usage share for the item (this hero's own share ÷ roster share = how much the item over-indexes on this hero's kit; that ratio IS the empirical play-style/ability-synergy signal).
   - Three additions to `src/generator/score.ts`, all behind `ScoreConstants` so the sweep can tune them:

@@ -16,6 +16,25 @@ test.describe('mobile viewport (390x844)', () => {
     expect(overflow).toBeLessThanOrEqual(0)
   })
 
+  // T21: at 390px, Infernus's full real sequence (15 steps, the observed max
+  // across all heroes) must fit inside the ability panel with no horizontal
+  // scrollbar of its own, and every step must still be present in the DOM.
+  test('Ability Point Order panel has no scrollbar and shows every step at 390px', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.locator('.build-card')).toHaveCount(1, { timeout: 15_000 })
+
+    const info = await page.evaluate(() => {
+      const scroll = document.querySelector('.ability-order-panel__scroll')!
+      return {
+        scrollWidth: scroll.scrollWidth,
+        clientWidth: scroll.clientWidth,
+        stepCount: document.querySelectorAll('.ability-order-panel__marker').length,
+      }
+    })
+    expect(info.scrollWidth).toBeLessThanOrEqual(info.clientWidth)
+    expect(info.stepCount).toBe(15)
+  })
+
   test('open item detail card has no horizontal overflow', async ({ page }) => {
     await page.goto('/')
     await page.locator('.item-row__button').first().click()
