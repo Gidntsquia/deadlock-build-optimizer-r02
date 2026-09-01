@@ -6,7 +6,17 @@ import { generateBuilds, pickBestBuild } from '../generator'
 import type { Build, Hero, HeroAnalytics, Item, ScoredCandidate } from '../generator'
 import { buildAbilityOrder } from '../generator/abilityOrder'
 import { buildItemChainGroups } from '../generator/itemChains'
-import { HIGH_BADGE_MIN_SAMPLE, HIGH_BADGE_WEIGHT, blendHighBadgeStat, dampedWinRate, highBadgeBlendWeight, scoreItem } from '../generator/score'
+import {
+  DEFAULT_SCORE_CONSTANTS,
+  HIGH_BADGE_MIN_SAMPLE,
+  HIGH_BADGE_WEIGHT,
+  blendHighBadgeStat,
+  dampedWinRate,
+  heroAffinityMultiplier,
+  highBadgeBlendWeight,
+  pairLift,
+  scoreItem,
+} from '../generator/score'
 import type { Ability, AbilityOrderStat } from '../generator/types'
 
 const DATA_DIR = join(process.cwd(), 'public/data')
@@ -174,6 +184,7 @@ describe('scoreItem high-elo blend', () => {
     is_active_item: false,
     active_description: null,
     passive_description: null,
+    roster_usage_share: null,
   }
 
   const baseInputs = {
@@ -336,6 +347,7 @@ describe('buildItemChainGroups', () => {
       is_active_item: false,
       active_description: null,
       passive_description: null,
+      roster_usage_share: null,
     }
   }
 
@@ -366,6 +378,184 @@ describe('buildItemChainGroups', () => {
   })
 })
 
+// T23: hero-affinity multiplier and item-pair synergy. Pure fixtures, not
+// snapshot-dependent.
+describe('heroAffinityMultiplier', () => {
+  it('is exactly 1 when hero usage share equals the roster baseline, any weight', () => {
+    expect(heroAffinityMultiplier(0.2, 0.2, { ...DEFAULT_SCORE_CONSTANTS, affinityWeight: 0.3 })).toBeCloseTo(1, 10)
+  })
+
+  it('affinityWeight 0 disables the multiplier regardless of how skewed the ratio is', () => {
+    expect(heroAffinityMultiplier(0.9, 0.1, { ...DEFAULT_SCORE_CONSTANTS, affinityWeight: 0 })).toBe(1)
+    expect(heroAffinityMultiplier(0.01, 0.5, { ...DEFAULT_SCORE_CONSTANTS, affinityWeight: 0 })).toBe(1)
+  })
+
+  it('clamps an over-indexing item at affinity 3 (score can at most triple its lift)', () => {
+    const constants = { ...DEFAULT_SCORE_CONSTANTS, affinityWeight: 0.15 }
+    // 0.9 / 0.1 = 9, clamped to 3 => 1 + 0.15 * (3 - 1) = 1.3
+    expect(heroAffinityMultiplier(0.9, 0.1, constants)).toBeCloseTo(1.3, 10)
+  })
+
+  it('clamps an under-indexing item at affinity 0.5', () => {
+    const constants = { ...DEFAULT_SCORE_CONSTANTS, affinityWeight: 0.3 }
+    // 0.01 / 0.5 = 0.02, clamped to 0.5 => 1 + 0.3 * (0.5 - 1) = 0.85
+    expect(heroAffinityMultiplier(0.01, 0.5, constants)).toBeCloseTo(0.85, 10)
+  })
+
+  it('a null roster share falls back to the 0.01 baseline rather than dividing by zero', () => {
+    const constants = { ...DEFAULT_SCORE_CONSTANTS, affinityWeight: 0.15 }
+    expect(heroAffinityMultiplier(0.01, null, constants)).toBeCloseTo(heroAffinityMultiplier(0.01, 0.01, constants), 10)
+  })
+})
+
+describe('pairLift', () => {
+  const constants = { ...DEFAULT_SCORE_CONSTANTS, confidenceK: 50 }
+  const meanWinRate = 0.5
+
+  it('is 0 for an unseen pair (no stat row)', () => {
+    expect(pairLift(null, meanWinRate, constants)).toBe(0)
+    expect(pairLift(undefined, meanWinRate, constants)).toBe(0)
+  })
+
+  it('is 0 for a pair stat with zero or null matches', () => {
+    expect(pairLift({ wins: 0, matches: 0 }, meanWinRate, constants)).toBe(0)
+    expect(pairLift({ wins: null, matches: null }, meanWinRate, constants)).toBe(0)
+  })
+
+  it('a thin-sample pair is damped close to 0 lift even with an extreme raw rate', () => {
+    // 1 match, 100% wins — barely any evidence, should sit near 0, well short
+    // of the raw 0.5 lift (1.0 - meanWinRate).
+    const lift = pairLift({ wins: 1, matches: 1 }, meanWinRate, constants)
+    expect(lift).toBeGreaterThan(0)
+    expect(lift).toBeLessThan(0.05)
+  })
+
+  it('a high-sample pair approaches its true rate-minus-mean lift', () => {
+    // 10000 matches at 60% win rate — plenty of evidence to overwhelm the
+    // K=50 confidence damping, so lift should land close to 0.6 - 0.5 = 0.1.
+    const lift = pairLift({ wins: 6000, matches: 10000 }, meanWinRate, constants)
+    expect(lift).toBeGreaterThan(0.09)
+    expect(lift).toBeLessThan(0.1)
+  })
+
+  it('equals dampedWinRate(rate, matches, mean) - mean (reuses the same shrink-to-mean formula)', () => {
+    const pairStat = { wins: 700, matches: 900 }
+    const rate = pairStat.wins / pairStat.matches
+    const expected = dampedWinRate(rate, pairStat.matches, meanWinRate, constants) - meanWinRate
+    expect(pairLift(pairStat, meanWinRate, constants)).toBeCloseTo(expected, 10)
+  })
+})
+
+describe('generateBuilds: pair synergy influences item choice (T23)', () => {
+  function fixtureItem(id: number, tier: number, rosterUsageShare: number | null = null): Item {
+    return {
+      id,
+      class_name: 'fixture_item',
+      name: `Item ${id}`,
+      components: [],
+      cost: tier * 1000,
+      item_tier: tier,
+      item_slot_type: 'vitality',
+      image: null,
+      stat_lines: [],
+      stat_sections: [],
+      is_active_item: false,
+      active_description: null,
+      passive_description: null,
+      roster_usage_share: rosterUsageShare,
+    }
+  }
+
+  const hero: Hero = {
+    id: 998,
+    name: 'Synergy Fixture Hero',
+    image: null,
+    base_stats: {},
+    stat_growth: {},
+    abilities: [
+      { id: 1, name: 'A', image: null },
+      { id: 2, name: 'B', image: null },
+      { id: 3, name: 'C', image: null },
+      { id: 4, name: 'D', image: null },
+    ],
+  }
+
+  it('with pairSynergyWeight on, a strong pair partner outranks a slightly higher static-score item', () => {
+    // Two early-tier candidates with near-identical static scores (300 has a
+    // hair more matches than 301), plus a fixed early anchor (100) that's
+    // always picked first. 301 has a strong recorded pair with the anchor;
+    // 300 has no pair data at all — with pairSynergyWeight on, 301 should
+    // win the next slot despite its slightly lower static score.
+    const anchor = fixtureItem(100, 1)
+    const a = fixtureItem(300, 1)
+    const b = fixtureItem(301, 1)
+    const filler = [302, 303, 304, 305].map((id) => fixtureItem(id, 1))
+    const items = [anchor, a, b, ...filler]
+
+    const matchesById = new Map<number, number>([
+      [100, 1000],
+      [300, 600],
+      [301, 598], // two matches behind `a` (same 50% win rate), so `a` wins on static score alone
+      ...filler.map((item, i): [number, number] => [item.id, 500 - i * 10]),
+    ])
+
+    const analytics: HeroAnalytics = {
+      hero_id: hero.id,
+      item_stats: items.map((item) => {
+        const matches = matchesById.get(item.id)!
+        return { item_id: item.id, wins: Math.round(matches * 0.5), matches }
+      }),
+      high_badge_min: 81,
+      high_badge_item_stats: [],
+      ability_order_stats: [],
+      high_badge_ability_order_stats: [],
+      item_pair_stats: [{ items: [100, 301], wins: 9000, matches: 10000 }], // strong pair, huge sample
+    }
+
+    const noSynergy = generateBuilds(hero, items, analytics, { ...DEFAULT_SCORE_CONSTANTS, pairSynergyWeight: 0 })
+    const withSynergy = generateBuilds(hero, items, analytics, { ...DEFAULT_SCORE_CONSTANTS, pairSynergyWeight: 0.2 })
+
+    const earlyNoSynergy = noSynergy.items.filter((e) => e.phase === 'early').map((e) => e.item_id)
+    const earlySynergy = withSynergy.items.filter((e) => e.phase === 'early').map((e) => e.item_id)
+
+    expect(earlyNoSynergy.indexOf(300)).toBeLessThan(earlyNoSynergy.indexOf(301))
+    expect(earlySynergy.indexOf(301)).toBeLessThan(earlySynergy.indexOf(300))
+  })
+
+  it('pairSynergyWeight 0 reproduces the exact same build as the static-only path (no behavior change)', () => {
+    const anchor = fixtureItem(100, 1)
+    const a = fixtureItem(300, 1)
+    const b = fixtureItem(301, 1)
+    const filler = [302, 303, 304, 305].map((id) => fixtureItem(id, 1))
+    const items = [anchor, a, b, ...filler]
+    const matchesById = new Map<number, number>([
+      [100, 1000],
+      [300, 600],
+      [301, 598],
+      ...filler.map((item, i): [number, number] => [item.id, 500 - i * 10]),
+    ])
+    const analytics: HeroAnalytics = {
+      hero_id: hero.id,
+      item_stats: items.map((item) => {
+        const matches = matchesById.get(item.id)!
+        return { item_id: item.id, wins: Math.round(matches * 0.5), matches }
+      }),
+      high_badge_min: 81,
+      high_badge_item_stats: [],
+      ability_order_stats: [],
+      high_badge_ability_order_stats: [],
+      item_pair_stats: [{ items: [100, 301], wins: 9000, matches: 10000 }],
+    }
+
+    const build = generateBuilds(hero, items, analytics, { ...DEFAULT_SCORE_CONSTANTS, pairSynergyWeight: 0 })
+    const earlyIds = build.items.filter((e) => e.phase === 'early').map((e) => e.item_id)
+    // Only 7 candidates exist total, and MIN_TOTAL_ITEMS (12) forces the
+    // backfill pass to take the rest too (still all tier 1 => still
+    // 'early'), so every item ends up picked, in pure static-score order.
+    expect(earlyIds).toEqual([100, 300, 301, 302, 303, 304, 305])
+  })
+})
+
 describe('generateBuilds: upgrade-chain exclusivity (T18)', () => {
   function fixtureItem(id: number, tier: number, components: number[] = []): Item {
     return {
@@ -382,6 +572,7 @@ describe('generateBuilds: upgrade-chain exclusivity (T18)', () => {
       is_active_item: false,
       active_description: null,
       passive_description: null,
+      roster_usage_share: null,
     }
   }
 
@@ -439,6 +630,7 @@ describe('generateBuilds: upgrade-chain exclusivity (T18)', () => {
       high_badge_item_stats: [],
       ability_order_stats: [],
       high_badge_ability_order_stats: [],
+      item_pair_stats: [],
     }
 
     const build = generateBuilds(hero, items, analytics)

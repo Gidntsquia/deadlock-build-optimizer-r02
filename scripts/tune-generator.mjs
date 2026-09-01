@@ -56,8 +56,17 @@ async function buildEntry() {
 // ScoreConstants (see DEFAULT_SCORE_CONSTANTS) — nothing invented. Two
 // groups (the composite score weights, and the archetype-bias pair) are
 // swept as named PROFILES rather than independently, both because they're
-// semantically one decision each and to keep the grid inside the ticket's
-// ~500-combo bound: 3 * 3 * 3 * 3 * 3 = 243 combos.
+// semantically one decision each and to keep the grid bounded.
+//
+// T23: two new dimensions (affinityWeight, pairSynergyWeight) join the
+// sweep, and weightsProfile gains two "heavier" usage/win-rate options per
+// the user's explicit request. Sweeping all seven dimensions as one
+// cross product (3*3*3*5*3*3*3 = 3645) would blow the ticket's ~1500-combo
+// bound, so this is a coarse-then-fine two-stage sweep instead (see main()):
+// stage 1 is exactly the T19 grid shape (405 combos, affinity/pairSynergy
+// held at 0 = no effect) to pick the base profile; stage 2 fixes that
+// winner and sweeps affinityWeight x pairSynergyWeight (9 combos) on top of
+// it. Total: 414 combos.
 const GRID = {
   confidenceK: [50, 25, 75],
   highBadgeMinSample: [100, 50, 150],
@@ -66,12 +75,20 @@ const GRID = {
     { name: 'default', winWeight: 0.35, useWeight: 0.25, valueWeight: 0.25, biasWeight: 0.15 },
     { name: 'winHeavy', winWeight: 0.45, useWeight: 0.2, valueWeight: 0.2, biasWeight: 0.15 },
     { name: 'useHeavy', winWeight: 0.3, useWeight: 0.35, valueWeight: 0.2, biasWeight: 0.15 },
+    // T23 "heavier usage/win-rate" options: usage+win rate together carry
+    // 80% of the composite, value/bias squeezed to a thin tie-break each.
+    { name: 'winUseHeavy', winWeight: 0.4, useWeight: 0.4, valueWeight: 0.1, biasWeight: 0.1 },
+    { name: 'useMax', winWeight: 0.3, useWeight: 0.5, valueWeight: 0.1, biasWeight: 0.1 },
   ],
   archetypeBiasProfile: [
     { name: 'default', vitalityBias: 0.6, offArchetypeBias: 0.2 },
     { name: 'looser', vitalityBias: 0.7, offArchetypeBias: 0.3 },
     { name: 'tighter', vitalityBias: 0.5, offArchetypeBias: 0.1 },
   ],
+  // T23: hero-affinity multiplier and item-pair synergy bonus strengths —
+  // swept in stage 2 only (see comment above).
+  affinityWeight: [0, 0.15, 0.3],
+  pairSynergyWeight: [0, 0.1, 0.2],
 }
 // Canonical parameter order for tie-breaking (also the grid's own key
 // order above) and each dimension's baseline (index 0 in every list above
@@ -152,6 +169,29 @@ function isBetter(a, b) {
   return compareLexicographic(a.combo, b.combo) < 0
 }
 
+// Stage 2 (T23): sweeps only affinityWeight x pairSynergyWeight, holding
+// everything else at stage 1's winning constants.
+function* enumerateAffinityCombos() {
+  for (const affinityWeight of GRID.affinityWeight) {
+    for (const pairSynergyWeight of GRID.pairSynergyWeight) {
+      yield { affinityWeight, pairSynergyWeight }
+    }
+  }
+}
+
+function isBetterStage2(a, b) {
+  if (a.agreement !== b.agreement) return a.agreement > b.agreement
+  const changesA = (a.combo.affinityWeight !== GRID.affinityWeight[0] ? 1 : 0) + (a.combo.pairSynergyWeight !== GRID.pairSynergyWeight[0] ? 1 : 0)
+  const changesB = (b.combo.affinityWeight !== GRID.affinityWeight[0] ? 1 : 0) + (b.combo.pairSynergyWeight !== GRID.pairSynergyWeight[0] ? 1 : 0)
+  if (changesA !== changesB) return changesA < changesB
+  const ka = [GRID.affinityWeight.indexOf(a.combo.affinityWeight), GRID.pairSynergyWeight.indexOf(a.combo.pairSynergyWeight)]
+  const kb = [GRID.affinityWeight.indexOf(b.combo.affinityWeight), GRID.pairSynergyWeight.indexOf(b.combo.pairSynergyWeight)]
+  for (let i = 0; i < ka.length; i++) {
+    if (ka[i] !== kb[i]) return ka[i] - kb[i]
+  }
+  return 0
+}
+
 function sanityCheckAllHeroes(heroes, items, analyticsByHeroId, generateBuilds, buildItemChainGroups, constants) {
   const chainGroups = buildItemChainGroups(items)
   for (const hero of heroes) {
@@ -216,13 +256,43 @@ async function main() {
   }
   if (!winner) throw new Error('No combo in the grid passed the sanity floor')
 
-  console.log('--- T19 tuning sweep ---')
-  console.log(`Grid searched: ${combosSearched} combos over dimensions ${JSON.stringify(DIMENSION_ORDER)}`)
+  // Stage 2 (T23): fix stage 1's winning base constants, sweep the new
+  // affinity/pair-synergy dimensions on top of it.
+  const stage1Constants = winner.constants
+  let stage2CombosSearched = 0
+  const stage2Results = []
+  for (const combo of enumerateAffinityCombos()) {
+    stage2CombosSearched++
+    const constants = { ...stage1Constants, affinityWeight: combo.affinityWeight, pairSynergyWeight: combo.pairSynergyWeight }
+    const build_ = generateBuilds(infernus, items, infernusAnalytics, constants)
+    const agreement = validateBuildAgainstMatches(build_, zergMatches).agreement_percent
+    stage2Results.push({ combo, constants, agreement })
+  }
+  stage2Results.sort((a, b) => (isBetterStage2(a, b) ? -1 : isBetterStage2(b, a) ? 1 : 0))
+
+  let stage2Winner = null
+  for (const candidate of stage2Results) {
+    const sanity = sanityCheckAllHeroes(heroes, items, analyticsByHeroId, generateBuilds, buildItemChainGroups, candidate.constants)
+    if (sanity.ok) {
+      stage2Winner = candidate
+      break
+    }
+    console.warn(`Skipping stage-2 combo (failed sanity: ${sanity.reason})`)
+  }
+  if (!stage2Winner) throw new Error('No stage-2 combo passed the sanity floor')
+
+  const totalCombosSearched = combosSearched + stage2CombosSearched
+
+  console.log('--- T19/T23 tuning sweep ---')
+  console.log(`Stage 1 grid: ${combosSearched} combos over dimensions ${JSON.stringify(DIMENSION_ORDER)}`)
+  console.log(`Stage 2 grid: ${stage2CombosSearched} combos over dimensions ["affinityWeight","pairSynergyWeight"]`)
+  console.log(`Total combos searched: ${totalCombosSearched}`)
   console.log(`Baseline (current DEFAULT_SCORE_CONSTANTS) agreement: ${baselineAgreement}%`)
-  console.log(`Winning agreement: ${winner.agreement}% (changes from baseline: ${changesFromBaseline(winner.combo)})`)
+  console.log(`Stage 1 winning agreement: ${winner.agreement}% (changes from baseline: ${changesFromBaseline(winner.combo)})`)
+  console.log(`Stage 2 winning agreement: ${stage2Winner.agreement}% (affinityWeight=${stage2Winner.combo.affinityWeight}, pairSynergyWeight=${stage2Winner.combo.pairSynergyWeight})`)
   console.log('Winning constants:')
-  console.log(JSON.stringify(winner.constants, null, 2))
-  if (winner.agreement < baselineAgreement) {
+  console.log(JSON.stringify(stage2Winner.constants, null, 2))
+  if (stage2Winner.agreement < baselineAgreement) {
     console.warn('WARNING: winning agreement is below baseline — grid found no improvement; keeping current constants.')
   }
 

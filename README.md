@@ -23,7 +23,7 @@ npm run build          # production build (tsc -b && vite build)
 npm test                # vitest/jsdom unit + component tests
 npm run test:e2e         # Playwright, real-browser 390x844 checks — run `npm run build` first
 npm run gate:heldout      # fails if src/generator/ ever references zergggy/ or heldout-ctc/
-npm run tune              # T19: offline sweep of the generator's scoring constants vs. Zergggy agreement
+npm run tune              # T19/T23: offline sweep of the generator's scoring constants vs. Zergggy agreement
 ```
 
 `public/data/**` is committed to the repo, so `npm run dev` / `npm run build` / `npm test` all work
@@ -37,9 +37,9 @@ talks to at runtime).
 
 | File | Contents |
 | --- | --- |
-| `public/data/items.json` | ONLY real, currently-shopable items (173; disabled/non-shopable entries like `upgrade_stabilizing_tripod` excluded, T18): id, name, cost, tier, slot type, image URL, stat lines (scoring only), `stat_sections` (real in-game tooltip display data, T14), `is_active_item`, `components` (catalog ids of the items this one upgrades from, T18). |
+| `public/data/items.json` | ONLY real, currently-shopable items (156; disabled/non-shopable and brawl-mode-only entries excluded, T18/T21-prep): id, name, cost, tier, slot type, image URL, stat lines (scoring only), `stat_sections` (real in-game tooltip display data, T14), `is_active_item`, `components` (catalog ids of the items this one upgrades from, T18), `roster_usage_share` (mean per-hero usage share across the roster, T23 hero-affinity signal). |
 | `public/data/heroes.json` | Every **active** hero (disabled/in-development heroes excluded): id, name, base stats, stat growth, and the hero's 4 real ability ids + names. |
-| `public/data/analytics/hero-<id>.json` | Per-hero item win/usage stats and ability-order stats, for every active hero. |
+| `public/data/analytics/hero-<id>.json` | Per-hero item win/usage stats and ability-order stats, for every active hero, plus `item_pair_stats` (top 200 Phantom+ item pairs by matches, T23 pair-synergy signal). |
 | `public/data/analytics/infernus-permutations.json` | Item-permutation stats for Infernus only (a fetch-budget decision — every other hero's analytics come from the per-hero file above). |
 | `public/data/personal/matches.json` | One account's standard-matchmaking match history (hero, win/loss, duration, start time). Fetched but currently unused by the UI — the personal-insight banner that read it was removed (T16). |
 | `public/data/zergggy/matches.json` | **Tuning set** (`src/validation/` only). ~30 of Zergggy's real Infernus matches (real matchmaking, private lobbies/bots excluded), each with `{item_id, game_time_s}` purchases. |
@@ -81,19 +81,47 @@ T19's tuning harness above); the UI still shows the exported build's agreement %
 as a display metric. The composite item score:
 
 ```
-score = 0.35 * confidenceDampedWinRate   (shrink the BLENDED win rate below toward the hero's mean
-                                            win rate, as if padded with 50 extra matches at that
-                                            mean — damps low-sample items without ignoring them)
-      + 0.25 * usageRate                  (the BLENDED usage ratio below)
-      + 0.25 * valuePerSoul               (sum of |non-mechanics stat values| / cost, normalized
-                                            against the item pool's max)
-      + 0.15 * archetypeBias              (1.0 own-archetype slot, 0.7 vitality, 0.3 off-archetype;
-                                            T19 tuned these two from an initial 0.6/0.2)
+score = ( 0.35 * confidenceDampedWinRate   (shrink the BLENDED win rate below toward the hero's mean
+                                              win rate, as if padded with 50 extra matches at that
+                                              mean — damps low-sample items without ignoring them)
+        + 0.25 * usageRate                  (the BLENDED usage ratio below)
+        + 0.25 * valuePerSoul               (sum of |non-mechanics stat values| / cost, normalized
+                                              against the item pool's max)
+        + 0.15 * archetypeBias              (1.0 own-archetype slot, 0.7 vitality, 0.3 off-archetype;
+                                              T19 tuned these two from an initial 0.6/0.2)
+        ) * heroAffinityMultiplier
 ```
 
 Ties break on ascending item id — the generator is a pure function of its inputs (no randomness, no
 clock reads), so re-running it on an unchanged snapshot always yields a deep-equal result
 (`generator.test.ts` asserts this directly).
+
+### Hero-affinity and item-pair synergy (T23)
+
+Two more signals feed the composite score and build assembly, both from data already in the
+snapshot and both off by default (`affinityWeight`/`pairSynergyWeight` in `ScoreConstants`) so
+they never fire unless the tuning sweep confirms they help:
+
+- **Hero-affinity multiplier**: `items.json`'s `roster_usage_share` is the item's mean usage share
+  across the whole hero roster; comparing a hero's own (blended) usage ratio for that item against
+  that roster baseline is an empirical proxy for ability/play-style synergy — an item bought far
+  more on this hero than average over-indexes on this hero's kit specifically. The ratio is clamped
+  to `[0.5, 3]` (`heroAffinityMultiplier` in `score.ts`) and scales the whole composite score:
+  `score *= 1 + affinityWeight * (affinity - 1)`. The T23 tuning sweep (below) landed on
+  `affinityWeight = 0.3`.
+- **Item-pair synergy bonus**: each `analytics/hero-<id>.json` carries `item_pair_stats` — the top
+  200 Phantom+ item PAIRS by matches and how those matches went together. When picking each next
+  item, `pairSynergyBonus` (`index.ts`) adds `pairSynergyWeight * mean(pairLift(candidate, alreadyPicked))`
+  to that candidate's static score, where `pairLift` (`score.ts`) is how much better a pair does
+  together than the hero's mean win rate, shrunk toward 0 by pair sample size — reusing the same
+  shrink-to-mean formula as `dampedWinRate` (damping a rate toward the mean is algebraically
+  identical to damping the rate-minus-mean toward 0), and exactly 0 for a pair with no recorded
+  data. Because this bonus depends on what's already picked, build assembly is an incremental
+  greedy loop (re-score every remaining eligible item at each pick) rather than a single static
+  sort-then-fill pass; ties still break on the original static-score/id order, so
+  `pairSynergyWeight = 0` reproduces the exact old static-only ordering. The T23 sweep found no
+  improvement from this signal at the winning affinity level, so it currently ships at 0 (see
+  PROGRESS.md for the full sweep result).
 
 ### High-elo weighting (Phantom+)
 
@@ -174,6 +202,12 @@ buyOrderAgreement = win-weighted pairwise concordance of the build's shared core
 Each sample is single-hero (Zergggy: Infernus only; ctc: Drifter only), so the core/not-core badge
 and agreement % only appear on that one hero's build — every other hero's builds render normally,
 just without a validation report.
+
+**Self-agreement ceiling (T23 context)**: scoring each of Zergggy's own 30 matches the same way
+(as a pseudo-build against the core set/order preferences derived from all 30) and averaging gives
+~74.6% — his own match-to-match variance means even a perfectly-matched single fixed build
+couldn't score much above that against his generated-build agreement metric. This is reported for
+context only (see PROGRESS.md), never wired into any committed code.
 
 ## UI (`src/App.tsx`, `src/components/**`)
 

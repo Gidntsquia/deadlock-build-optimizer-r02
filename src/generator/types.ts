@@ -48,6 +48,12 @@ export interface Item {
   is_active_item: boolean
   active_description: string | null
   passive_description: string | null
+  // Roster-average per-hero usage share (mean across all heroes of each
+  // hero's own item.matches / that hero's own max-item matches), null if no
+  // hero has any recorded usage. The hero-affinity signal (T23): a hero's
+  // own usage share for this item, divided by this baseline, is how much
+  // the item over- or under-indexes on that hero's kit specifically.
+  roster_usage_share: number | null
 }
 
 export interface Ability {
@@ -79,6 +85,14 @@ export interface AbilityOrderStat {
   matches: number | null
 }
 
+// Phantom+ co-occurrence for one item PAIR on this hero — how often the two
+// were bought together, and how those matches went (T23 synergy signal).
+export interface ItemPairStat {
+  items: [number, number]
+  wins: number | null
+  matches: number | null
+}
+
 export interface HeroAnalytics {
   hero_id: number
   item_stats: ItemStat[]
@@ -91,6 +105,9 @@ export interface HeroAnalytics {
   // badge >= high_badge_min (Phantom+; see T15). Preferred source when its
   // top row has enough matches.
   high_badge_ability_order_stats: AbilityOrderStat[]
+  // Top 200 Phantom+ item pairs by matches (T23) — which items win TOGETHER
+  // on this hero.
+  item_pair_stats: ItemPairStat[]
 }
 
 // Generator output.

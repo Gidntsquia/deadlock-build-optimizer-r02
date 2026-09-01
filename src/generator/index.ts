@@ -1,9 +1,9 @@
 import { buildAbilityOrder } from './abilityOrder'
 import { buildItemChainGroups } from './itemChains'
-import { DEFAULT_SCORE_CONSTANTS, heroMeanWinRate, maxHighBadgeItemMatches, maxItemMatches, scoreItem } from './score'
+import { DEFAULT_SCORE_CONSTANTS, heroMeanWinRate, maxHighBadgeItemMatches, maxItemMatches, pairLift, scoreItem } from './score'
 import type { ScoreConstants } from './score'
 import { isActiveItem, statValuePerSoul } from './statUtils'
-import type { Archetype, Build, BuildItemEntry, BuildPhase, Hero, HeroAnalytics, Item, ItemStat } from './types'
+import type { Archetype, Build, BuildItemEntry, BuildPhase, Hero, HeroAnalytics, Item, ItemPairStat, ItemStat } from './types'
 
 export type {
   Ability,
@@ -15,6 +15,7 @@ export type {
   Hero,
   HeroAnalytics,
   Item,
+  ItemPairStat,
   ItemStat,
   StatSection,
   StatSectionStat,
@@ -30,6 +31,29 @@ function tierPhase(tier: number): BuildPhase {
   if (tier <= 2) return 'early'
   if (tier === 3) return 'mid'
   return 'late'
+}
+
+// Canonical, order-independent key for a pair of item ids (T23).
+function pairKey(a: number, b: number): string {
+  return a < b ? `${a}:${b}` : `${b}:${a}`
+}
+
+// Mean pair-synergy lift (T23) between a candidate item and everything
+// already selected in the build so far — 0 with nothing selected yet or
+// with pairSynergyWeight at its default 0 (no effect on ordinary callers).
+function pairSynergyBonus(
+  candidateId: number,
+  selectedIds: Set<number>,
+  pairStatsByKey: Map<string, ItemPairStat>,
+  meanWinRate: number,
+  constants: ScoreConstants,
+): number {
+  if (selectedIds.size === 0 || constants.pairSynergyWeight === 0) return 0
+  let sum = 0
+  for (const id of selectedIds) {
+    sum += pairLift(pairStatsByKey.get(pairKey(candidateId, id)), meanWinRate, constants)
+  }
+  return constants.pairSynergyWeight * (sum / selectedIds.size)
 }
 
 const PHASE_TARGET_COUNTS: Record<BuildPhase, number> = { early: 4, mid: 4, late: 5 }
@@ -76,6 +100,7 @@ function buildForArchetype(
   archetype: Archetype,
   abilityOrder: Build['ability_order'],
   chainGroups: Map<number, Set<number>>,
+  pairStatsByKey: Map<string, ItemPairStat>,
   constants: ScoreConstants,
 ): { build: Build; totalScore: number } {
   const scored = items
@@ -99,7 +124,9 @@ function buildForArchetype(
       )
       return { item, score }
     })
-    // Stable rank: highest score first, ascending item id breaks ties.
+    // Stable rank: highest static score first, ascending item id breaks
+    // ties — this order is also what makes the incremental pick below fully
+    // deterministic (see runGreedyPass).
     .sort((a, b) => b.score - a.score || a.item.id - b.item.id)
 
   const phaseBuckets: Record<BuildPhase, Item[]> = { early: [], mid: [], late: [] }
@@ -119,26 +146,49 @@ function buildForArchetype(
     if (chain) for (const chainId of chain) if (chainId !== item.id) blockedByChain.add(chainId)
   }
 
-  for (const { item } of scored) {
-    if (blockedByChain.has(item.id)) continue
-    const phase = tierPhase(item.item_tier)
-    if (phaseBuckets[phase].length >= PHASE_TARGET_COUNTS[phase]) continue
-    if (isActiveItem(item) && activeCount >= ACTIVE_ITEM_CAP) continue
-    tryTake(item, phase)
+  const total = () => phaseBuckets.early.length + phaseBuckets.mid.length + phaseBuckets.late.length
+
+  const isEligible = (item: Item, respectQuota: boolean): boolean => {
+    if (selectedIds.has(item.id) || blockedByChain.has(item.id)) return false
+    if (isActiveItem(item) && activeCount >= ACTIVE_ITEM_CAP) return false
+    if (respectQuota) {
+      const phase = tierPhase(item.item_tier)
+      if (phaseBuckets[phase].length >= PHASE_TARGET_COUNTS[phase]) return false
+    }
+    return true
   }
 
+  // Incremental greedy fill (T23): pair-synergy bonus depends on what's
+  // already picked, so — unlike a plain static sort-then-fill — each pick
+  // rescans every remaining eligible candidate and re-scores it as
+  // staticScore + pairSynergyBonus(candidate, already-picked). `scored` is
+  // iterated in its stable static order, and a candidate only replaces the
+  // running best on a strictly higher effective score, so ties fall back to
+  // the original highest-static-score/lowest-id ordering — determinism is
+  // unchanged when pairSynergyWeight is 0 (bonus is always 0, so the
+  // effective order collapses to the static order).
+  const runGreedyPass = (respectQuota: boolean, targetTotal: number) => {
+    while (total() < targetTotal) {
+      let best: { item: Item; phase: BuildPhase; effectiveScore: number } | null = null
+      for (const { item, score } of scored) {
+        if (!isEligible(item, respectQuota)) continue
+        const bonus = pairSynergyBonus(item.id, selectedIds, pairStatsByKey, meanWinRate, constants)
+        const effectiveScore = score + bonus
+        if (best === null || effectiveScore > best.effectiveScore) {
+          best = { item, phase: tierPhase(item.item_tier), effectiveScore }
+        }
+      }
+      if (best === null) break
+      tryTake(best.item, best.phase)
+    }
+  }
+
+  const quotaTotal = PHASE_TARGET_COUNTS.early + PHASE_TARGET_COUNTS.mid + PHASE_TARGET_COUNTS.late
+  runGreedyPass(true, quotaTotal)
   // Backfill (any tier, quota ignored) if the phase quotas above didn't reach
   // the required minimum — not expected with this snapshot's item counts,
   // but keeps the ≥12-item guarantee robust regardless of pool size.
-  const total = () => phaseBuckets.early.length + phaseBuckets.mid.length + phaseBuckets.late.length
-  if (total() < MIN_TOTAL_ITEMS) {
-    for (const { item } of scored) {
-      if (total() >= MIN_TOTAL_ITEMS) break
-      if (selectedIds.has(item.id) || blockedByChain.has(item.id)) continue
-      if (isActiveItem(item) && activeCount >= ACTIVE_ITEM_CAP) continue
-      tryTake(item, tierPhase(item.item_tier))
-    }
-  }
+  runGreedyPass(false, MIN_TOTAL_ITEMS)
 
   const orderedItems = [...phaseBuckets.early, ...phaseBuckets.mid, ...phaseBuckets.late]
   let runningTotal = 0
@@ -179,9 +229,11 @@ export function generateBuilds(hero: Hero, items: Item[], analytics: HeroAnalyti
     ...analytics,
     item_stats: analytics.item_stats.filter((s) => catalogIds.has(s.item_id)),
     high_badge_item_stats: analytics.high_badge_item_stats.filter((s) => catalogIds.has(s.item_id)),
+    item_pair_stats: analytics.item_pair_stats.filter((s) => catalogIds.has(s.items[0]) && catalogIds.has(s.items[1])),
   }
   const itemStatsById = new Map(catalogAnalytics.item_stats.map((s) => [s.item_id, s]))
   const highBadgeStatsById = new Map(catalogAnalytics.high_badge_item_stats.map((s) => [s.item_id, s]))
+  const pairStatsByKey = new Map(catalogAnalytics.item_pair_stats.map((s) => [pairKey(s.items[0], s.items[1]), s]))
   const meanWinRate = heroMeanWinRate(catalogAnalytics)
   const maxMatches = maxItemMatches(catalogAnalytics)
   const maxHighMatches = maxHighBadgeItemMatches(catalogAnalytics)
@@ -202,6 +254,7 @@ export function generateBuilds(hero: Hero, items: Item[], analytics: HeroAnalyti
       archetype,
       abilityOrder,
       chainGroups,
+      pairStatsByKey,
       constants,
     )
     return { archetype, totalScore, build }

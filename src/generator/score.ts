@@ -1,4 +1,4 @@
-import type { Archetype, HeroAnalytics, Item, ItemStat } from './types'
+import type { Archetype, HeroAnalytics, Item, ItemPairStat, ItemStat } from './types'
 import { statValuePerSoul } from './statUtils'
 
 // All tunable scoring constants in one named block (T19: a deterministic
@@ -30,6 +30,12 @@ export interface ScoreConstants {
   // archetypes) and everything else (low but nonzero).
   vitalityBias: number
   offArchetypeBias: number
+  // Hero-affinity multiplier strength (T23) — see heroAffinityMultiplier.
+  // 0 = no effect (multiplier is always 1).
+  affinityWeight: number
+  // Item-pair synergy bonus strength in build assembly (T23) — see
+  // index.ts's buildForArchetype / score.ts's pairLift. 0 = no effect.
+  pairSynergyWeight: number
 }
 
 export const DEFAULT_SCORE_CONSTANTS: ScoreConstants = {
@@ -42,6 +48,11 @@ export const DEFAULT_SCORE_CONSTANTS: ScoreConstants = {
   biasWeight: 0.15,
   vitalityBias: 0.7,
   offArchetypeBias: 0.3,
+  // T23 tuning sweep winner (see PROGRESS.md): affinityWeight 0.3 raised the
+  // tuning-set agreement score 46% -> 48%; pairSynergyWeight found no
+  // improvement at 0.3's affinity level, so it stays off (0 = no effect).
+  affinityWeight: 0.3,
+  pairSynergyWeight: 0,
 }
 
 // Back-compat named exports (a few call sites/tests referenced these
@@ -143,6 +154,40 @@ export function archetypeBias(item: Item, archetype: Archetype, constants: Score
   return constants.offArchetypeBias
 }
 
+// Hero-affinity multiplier (T23): compares this hero's own usage share for
+// an item (heroUsageShare, the same blended usageRatio scoreItem already
+// computes) against the item's roster-average usage share — an item that's
+// used far more on this hero than average over-indexes on this hero's kit
+// (play style / ability synergy, empirically, since we don't model abilities
+// directly), and vice versa. Clamped to [0.5, 3] so a thin-sample outlier
+// can't swing the multiplier too far; affinityWeight (0 = no effect) scales
+// how much that ratio actually moves the final composite score.
+export function heroAffinityMultiplier(
+  heroUsageShare: number,
+  rosterUsageShare: number | null,
+  constants: ScoreConstants = DEFAULT_SCORE_CONSTANTS,
+): number {
+  const baseline = Math.max(rosterUsageShare ?? 0.01, 0.01)
+  const affinity = Math.min(Math.max(heroUsageShare / baseline, 0.5), 3)
+  return 1 + constants.affinityWeight * (affinity - 1)
+}
+
+// Item-pair synergy (T23): how much better (or worse) a pair of items does
+// together than this hero's mean win rate, shrunk toward 0 as pair matches
+// run thin — reuses dampedWinRate's shrink-to-mean formula (damping toward
+// meanWinRate is exactly damping the RATE-minus-mean toward 0, algebraically)
+// rather than a second damping formula. An unseen/statless pair scores 0
+// (neither a bonus nor a penalty), not a guess.
+export function pairLift(
+  pairStat: Pick<ItemPairStat, 'wins' | 'matches'> | null | undefined,
+  meanWinRate: number,
+  constants: ScoreConstants = DEFAULT_SCORE_CONSTANTS,
+): number {
+  if (!pairStat || pairStat.matches == null || pairStat.matches <= 0) return 0
+  const rate = safeRate(pairStat.wins, pairStat.matches)
+  return dampedWinRate(rate, pairStat.matches, meanWinRate, constants) - meanWinRate
+}
+
 export interface ItemScoreInputs {
   item: Item
   overallWins: number | null
@@ -186,5 +231,8 @@ export function scoreItem(
   const useScore = blended.usageRatio
   const valueScore = maxValuePerSoul > 0 ? statValuePerSoul(item) / maxValuePerSoul : 0
   const biasScore = archetypeBias(item, archetype, constants)
-  return constants.winWeight * winScore + constants.useWeight * useScore + constants.valueWeight * valueScore + constants.biasWeight * biasScore
+  const composite =
+    constants.winWeight * winScore + constants.useWeight * useScore + constants.valueWeight * valueScore + constants.biasWeight * biasScore
+  const affinityMultiplier = heroAffinityMultiplier(useScore, item.roster_usage_share, constants)
+  return composite * affinityMultiplier
 }
