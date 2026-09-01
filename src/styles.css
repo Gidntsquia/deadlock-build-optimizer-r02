@@ -1,5 +1,26 @@
 /* Mobile-first: designed at 390x844. Desktop is a centered column. */
 
+/* DESIGN.md's in-game-look token system (T10). Fonts stay system fallbacks
+   until T12 vendors @fontsource/baloo-2 + nunito-sans; stacks already match
+   DESIGN.md's documented fallbacks so the T12 swap is additive only. */
+:root {
+  --bg-abyss: #0c1712;
+  --header-teal: #6ec9c4;
+  --panel-parchment: #b5a586;
+  --panel-parchment-deep: #a49172;
+  --panel-navy: #1d3050;
+  --row-navy: #152238;
+  --slot-weapon: #d18b21;
+  --slot-vitality: #7ab82f;
+  --slot-spirit: #8c5fc7;
+  --badge-khaki: #9a9179;
+  --diamond-violet: #a05be8;
+  --ink: #171310;
+  --text-light: #f2ead8;
+  --font-display: 'Baloo 2', 'Trebuchet MS', sans-serif;
+  --font-body: 'Nunito Sans', system-ui, sans-serif;
+}
+
 *,
 *::before,
 *::after {
@@ -14,14 +35,9 @@ body {
 }
 
 body {
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    sans-serif;
-  background: #14141a;
-  color: #f2f2f5;
+  font-family: var(--font-body);
+  background: var(--bg-abyss);
+  color: var(--text-light);
 }
 
 .app {
@@ -113,71 +129,140 @@ h3 {
   white-space: nowrap;
 }
 
+.phase-panel {
+  background: var(--panel-parchment);
+  border-radius: 12px;
+  padding: 10px 10px 12px;
+  margin-top: 12px;
+}
+
+.phase-panel__title {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+.phase-panel__strip {
+  background: var(--panel-parchment-deep);
+  border-radius: 8px;
+  padding: 10px;
+}
+
 .item-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 10px;
 }
 
 .item-row {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
   width: 100%;
 }
 
 .item-row__button {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  flex: 1 1 auto;
-  min-width: 0;
+  gap: 4px;
+  width: 100%;
   min-height: 44px;
-  padding: 4px 8px;
-  border-radius: 8px;
+  padding: 0;
   border: none;
-  background: #2a2a34;
-  color: inherit;
-  text-align: left;
+  background: none;
+  color: var(--ink);
+  text-align: center;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.75rem;
 }
 
-.item-row__image {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  flex: none;
+.item-card__tile {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.item-card__tile--weapon {
+  background: var(--slot-weapon);
+}
+
+.item-card__tile--vitality {
+  background: var(--slot-vitality);
+}
+
+.item-card__tile--spirit {
+  background: var(--slot-spirit);
+}
+
+.item-card__image {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  background: #3a3a45;
 }
 
-.item-row__image--placeholder {
-  display: inline-block;
+.item-card__tier {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 18px;
+  padding: 1px 4px 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  color: var(--text-light);
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 0 0 8px 0;
 }
 
-.item-row__name {
-  flex: 1 1 auto;
-  min-width: 0;
+.item-card__active-chip {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  background: var(--diamond-violet);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.item-card__label {
+  width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  background: var(--badge-khaki);
+  color: var(--ink);
+  border-radius: 4px;
+  padding: 2px 4px;
 }
 
-.item-row__cost {
-  flex: none;
-  color: #d9c37a;
+.item-card__cost {
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 
 .item-row__running-total {
   flex: none;
-  font-size: 0.75rem;
-  color: #8a8a96;
+  font-size: 0.7rem;
+  color: var(--ink);
+  opacity: 0.7;
   white-space: nowrap;
 }
 

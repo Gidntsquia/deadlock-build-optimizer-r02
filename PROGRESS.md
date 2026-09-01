@@ -1,5 +1,15 @@
 # PROGRESS — newest first, ≤25 lines per entry; past ~1,500 lines rotate all but newest ~10 entries verbatim to PROGRESS_ARCHIVE.md
 
+## 2026-09-01T18:34Z — T10 done: build display restyled to match in-game build browser
+- New DESIGN.md `:root` token block in styles.css (parchment/abyss/navy palette, slot colors, khaki/violet accents) drives everything; `body` now reads it instead of hardcoded colors.
+- `BuildCard` collapses the generator's internal early/mid/late split into 2 display panels ("Early Game" / "Mid to Late Game" — DESIGN.md's own layout concept, more authoritative than the ticket's "your call"); "Testing"/optional 3rd panel omitted, no leftover-item data exists to show there (never fabricate data).
+- `ItemRow` rewritten into a vertical card: slot-colored tile (weapon/vitality/spirit), roman-numeral tier ribbon (`tierLabel`; item_tier 5 — a 23-item flat-9999-soul sentinel, not a real 5th tier — falls back to plain number, not invented "V"), "Active" chip driven by T14's real `is_active_item` flag (not the generator-internal cooldown heuristic), broken-image degrade via `onError` state (tile-only, no broken-image icon).
+- Deliberately kept `.item-row`/`.item-row__button`/`.badge` class names as continuity hooks — zero test or e2e edits needed; all existing assertions (incl. ≥40px tap targets, blocked-image-host boot) passed unmodified.
+- Manual real-browser screenshot (temp spec, deleted, not committed) confirmed tiles/ribbons/chips/panels render correctly at 390×844, no overflow, broken images degrade cleanly.
+- README's UI section rewritten for the new layout.
+- Verified: `npm run build` clean; `npx vitest run` 43 passed/2 skipped (unchanged — no test edits needed); `npm run gate:heldout` OK (5 files, zero held-out references); `npx playwright test` 5/5 (existing specs, unmodified).
+- T10 archived to GOALS_ARCHIVE.md. Queue was T13 → T14 → T10 → T11 → T12, all three now done this run; next up is T11 (Ability Point Order panel).
+
 ## 2026-09-01T18:25Z — T14 done: item detail shows real in-game tooltip stats (stat_sections)
 - `ItemDetailSheet` renders the committed `stat_sections` field instead of `stat_lines` (ghost engine keys like AbilityUnitTargetLimit/ChannelMoveSpeed never show). `Item` type gained `stat_sections`/`is_active_item`; `stat_lines` untouched, still scoring-only. Section headings only for active/passive (innate/null get none, per spec). Reused T8's `isMeaningfulStatLine` directly on each stat's `value` — it already returns false for `null`, so no new null-handling code needed.
 - New `formatSectionStatValue`: `{s:sign}` prefix → `+` only for positive values (negative values' `-` is already in the string); literal `+`/`-` prefixes pass through. JUDGMENT CALL: 125/1093 real values already bake their unit into the string (e.g. `"10m"` + postfix `"m"`) — skip appending postfix when the value already ends with it, avoiding "10mm" (documented in README).

@@ -154,13 +154,22 @@ a banner meant to contextualize the late-game budget in the build below it.
 ## UI (`src/App.tsx`, `src/components/**`)
 
 Mobile-first at 390×844: a hero `<select>` (Infernus default), the single recommended build (T13) as
-a card — winning archetype shown as a subtitle (e.g. "Spirit build") — with its buy list grouped
-early/mid/late (item image, name, cost, running soul total, core/not-core badge when a validation
-report exists), an ability level-up order list, and the personalization banner. Tapping
-any item opens a bottom-sheet detail card (image, cost, tier, slot type, and the item's real in-game
-tooltip sections — T14, see below). No horizontal
-scroll at 390px; every tappable element (hero select, item rows, the detail sheet's close button)
-is ≥40px in its constrained dimension. Desktop is just the same layout centered in a ~480px column.
+a card — winning archetype shown as a subtitle (e.g. "Spirit build") — restyled (T10) to match
+Deadlock's own in-game build browser using DESIGN.md's token system (`:root` custom properties for
+the parchment/abyss/navy palette and slot colors). The buy list renders as two parchment "Early Game"
+/ "Mid to Late Game" panels (`.phase-panel`) — the generator's internal 3-way early/mid/late split
+still drives scoring/ordering, but mid and late collapse into one display panel per DESIGN.md's
+layout concept (a "Testing" third panel exists in-game but is omitted here — nothing in the snapshot
+identifies leftover/near-miss items to populate it with). Each item is a square slot-colored tile
+(orange/green/purple for weapon/vitality/spirit) with a corner tier ribbon (roman I–IV; item_tier 5,
+a 23-item flat-9999-soul sentinel category that isn't a real 5th shop tier, falls back to the plain
+number), an "Active" chip when `item.is_active_item` is set, a khaki name-label strip, cost, running
+soul total, and a core/not-core badge when a validation report exists. A broken/blocked item image
+degrades to the colored tile with no broken-image icon (tracked via `onError` state, not a CSS
+fallback). Tapping any item opens a bottom-sheet detail card (image, cost, tier, slot type, and the
+item's real in-game tooltip sections — T14, see below). No horizontal scroll at 390px; every
+tappable element (hero select, item cards, the detail sheet's close button) is ≥40px in its
+constrained dimension. Desktop is just the same layout centered in a ~480px column.
 
 Runtime data loads via `fetch('/data/**')` against the static snapshot files (`src/data/loaders.ts`
 for items/heroes/analytics/personal matches; `src/validation/loadMatches.ts` for the held-out fetch,

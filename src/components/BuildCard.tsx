@@ -10,8 +10,17 @@ interface BuildCardProps {
   onSelectItem: (itemId: number) => void
 }
 
-const PHASES: BuildPhase[] = ['early', 'mid', 'late']
-const PHASE_LABELS: Record<BuildPhase, string> = { early: 'Early game', mid: 'Mid game', late: 'Late game' }
+// In-game the build browser shows two shopping-phase panels, not three (see
+// DESIGN.md's layout concept) — the generator's internal early/mid/late
+// phase split (still used for scoring/ordering) collapses to that pairing
+// for display: mid and late buy phases share one "Mid to Late Game" panel.
+// A third "Testing"/optional panel exists in-game for experimental items,
+// but nothing in this snapshot identifies leftover/near-miss candidates to
+// show there, so it's omitted rather than inventing data for it (T10).
+const DISPLAY_SECTIONS: { key: string; label: string; phases: BuildPhase[] }[] = [
+  { key: 'early', label: 'Early Game', phases: ['early'] },
+  { key: 'mid-late', label: 'Mid to Late Game', phases: ['mid', 'late'] },
+]
 const ARCHETYPE_LABELS: Record<Build['archetype'], string> = { weapon: 'Weapon build', spirit: 'Spirit build' }
 
 export default function BuildCard({ build, itemsById, validation, onSelectItem }: BuildCardProps) {
@@ -25,27 +34,29 @@ export default function BuildCard({ build, itemsById, validation, onSelectItem }
         {validation && <span className="build-card__agreement">{validation.agreement_percent}% agreement</span>}
       </header>
 
-      {PHASES.map((phase) => {
-        const entries = build.items.filter((entry) => entry.phase === phase)
+      {DISPLAY_SECTIONS.map((section) => {
+        const entries = build.items.filter((entry) => section.phases.includes(entry.phase))
         if (entries.length === 0) return null
         return (
-          <div key={phase} className="build-card__phase">
-            <h3>{PHASE_LABELS[phase]}</h3>
-            <ul className="item-list">
-              {entries.map((entry) => {
-                const item = itemsById.get(entry.item_id)
-                if (!item) return null
-                return (
-                  <ItemRow
-                    key={entry.item_id}
-                    item={item}
-                    runningTotal={entry.running_total}
-                    core={validation ? coreByItemId.get(entry.item_id) ?? false : null}
-                    onSelect={onSelectItem}
-                  />
-                )
-              })}
-            </ul>
+          <div key={section.key} className="phase-panel">
+            <h3 className="phase-panel__title">{section.label}</h3>
+            <div className="phase-panel__strip">
+              <ul className="item-list">
+                {entries.map((entry) => {
+                  const item = itemsById.get(entry.item_id)
+                  if (!item) return null
+                  return (
+                    <ItemRow
+                      key={entry.item_id}
+                      item={item}
+                      runningTotal={entry.running_total}
+                      core={validation ? coreByItemId.get(entry.item_id) ?? false : null}
+                      onSelect={onSelectItem}
+                    />
+                  )
+                })}
+              </ul>
+            </div>
           </div>
         )
       })}
