@@ -14,9 +14,11 @@ function readJson(...parts: string[]) {
 // sandbox that writes this test cannot reach the fetch APIs. Skip cleanly
 // rather than fail when public/data/meta.json is absent.
 describe.skipIf(!hasSnapshots)('data snapshots', () => {
-  it('items.json has >=200 shopable items with required fields', () => {
+  it('items.json has >=150 shopable items with required fields', () => {
+    // Catalog is filtered to real shop items (shopable && !disabled) — 173 as of
+    // 2026-09-01; the old >=200 floor counted disabled entries.
     const items = readJson('items.json')
-    expect(items.length).toBeGreaterThanOrEqual(200)
+    expect(items.length).toBeGreaterThanOrEqual(150)
     for (const item of items) {
       expect(item.id).toBeDefined()
       expect(item.class_name).toBeDefined()

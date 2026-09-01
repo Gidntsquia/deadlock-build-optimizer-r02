@@ -59,3 +59,15 @@ with roman-numeral tier (I–IV), "ACTIVE" chip for actives.
 - 390×844 first: sections stack, cards wrap ~4/row, tap targets ≥40px, the page
   itself never scrolls horizontally (wide content scrolls inside its own panel).
 - Copy: sentence case, plain verbs, game vocabulary ("Early Game", not "Phase 1").
+
+## Desktop (T17)
+
+- Breakpoint 1024px. Below it: the 390-first layout, unchanged. At/above it: the
+  sheet goes fluid to a 1440px max-width with 32–48px side margins — it should
+  read as the in-game build editor filling a monitor, not a phone column pinned
+  to the center.
+- Phase panels sit side by side when both fit (equal flex columns); card grids
+  grow per-row count naturally from the same wrap rules. Ability Point Order
+  spans the full content width and only scrolls internally if it genuinely
+  cannot fit.
+- Same tokens, same type scale (headings may step up one size), no new colors.

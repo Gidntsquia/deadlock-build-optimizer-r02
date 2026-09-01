@@ -51,6 +51,13 @@ function pickImage(item) {
   return firstDefined(item, ['image_webp', 'image', 'icon_hero_card_webp', 'icon'])
 }
 
+// Items use the in-game SHOP art (framed card, e.g. items/weapon/basic_magazine.webp),
+// not the raw ability-icon glyph (upgrades/mods_weapon/clip_size.webp) — user bug
+// report 2026-09-01. Heroes/abilities keep pickImage (no shop variant exists).
+function pickShopImage(item) {
+  return firstDefined(item, ['shop_image_webp', 'shop_image', 'image_webp', 'image'])
+}
+
 // Upstream tooltip/property shapes are not confirmed from this sandbox (no
 // egress) — this reads the plausible field names defensively and is expected
 // to be spot-checked against real payloads when T2b runs the fetch for real.
@@ -118,15 +125,27 @@ function extractAbilityText(item, kind) {
   return firstDefined(tooltip, [`${kind}_description`, `${kind}Description`]) ?? null
 }
 
-function pruneItem(item) {
+// Only real shop items belong in the catalog: the raw upgrade list carries 78
+// disabled/non-shopable entries (e.g. upgrade_stabilizing_tripod, disabled:true,
+// name = raw class_name) — user bug report 2026-09-01.
+function isShopableItem(item) {
+  return item.shopable === true && item.disabled !== true
+}
+
+function pruneItem(item, idByClassName) {
   return {
     id: item.id,
     class_name: item.class_name,
     name: item.name,
+    // Upgrade-chain components as catalog item ids (in-game, buying the upgrade
+    // consumes the component and the component becomes unpurchasable).
+    components: (item.component_items ?? [])
+      .map((cls) => idByClassName.get(cls))
+      .filter((id) => id != null),
     cost: firstDefined(item, ['item_cost', 'cost', 'price']),
     item_tier: firstDefined(item, ['item_tier', 'tier']),
     item_slot_type: firstDefined(item, ['item_slot_type', 'slot_type']),
-    image: pickImage(item),
+    image: pickShopImage(item),
     stat_lines: extractStatLines(item),
     stat_sections: extractStatSections(item),
     is_active_item: item.is_active_item ?? false,
@@ -170,12 +189,30 @@ function pruneItemStat(row) {
   return { item_id: firstDefined(row, ['item_id']), wins, matches }
 }
 
+// The real field is `abilities`: an array of ability IDs in AP-spend order
+// (verified live 2026-09-01; the old ability_order/sequence guesses were why the
+// whole roster shipped null sequences). Each row is one distinct order permutation
+// with aggregate stats; we keep only the top rows by matches — that's all the
+// generator needs to pick a winner, and it shrinks analytics files hugely.
+const ABILITY_ORDER_TOP_N = 25
 function pruneAbilityOrderStat(row) {
   return {
-    sequence: firstDefined(row, ['ability_order', 'sequence']),
+    sequence: firstDefined(row, ['abilities', 'ability_order', 'sequence']),
     wins: firstDefined(row, ['wins', 'win_count']),
     matches: firstDefined(row, ['matches', 'match_count', 'total_matches']),
   }
+}
+function topAbilityOrders(rows) {
+  return rows
+    .map(pruneAbilityOrderStat)
+    .filter((r) => Array.isArray(r.sequence) && r.sequence.length > 0)
+    .sort(
+      (a, b) =>
+        (b.matches ?? 0) - (a.matches ?? 0) ||
+        (b.wins ?? 0) - (a.wins ?? 0) ||
+        String(a.sequence).localeCompare(String(b.sequence)),
+    )
+    .slice(0, ABILITY_ORDER_TOP_N)
 }
 
 function prunePermutationStat(row) {
@@ -223,7 +260,9 @@ async function main() {
 
   console.log('fetch-data: items')
   const rawItems = await fetchJson(`${ASSETS_BASE}/v2/items/by-type/upgrade`)
-  const items = rawItems.map(pruneItem)
+  const shopableRawItems = rawItems.filter(isShopableItem)
+  const idByClassName = new Map(shopableRawItems.map((i) => [i.class_name, i.id]))
+  const items = shopableRawItems.map((i) => pruneItem(i, idByClassName))
   const shopItemIds = new Set(items.map((i) => i.id))
   writeFileSync(join(OUT_DIR, 'items.json'), JSON.stringify(items))
 
@@ -241,12 +280,16 @@ async function main() {
       `${API_BASE}/v1/analytics/item-stats?hero_id=${hero.id}&min_average_badge=${HIGH_BADGE_MIN}`,
     )
     const rawAbilityOrderStats = await fetchJson(`${API_BASE}/v1/analytics/ability-order-stats?hero_id=${hero.id}`)
+    const rawHighBadgeAbilityOrderStats = await fetchJson(
+      `${API_BASE}/v1/analytics/ability-order-stats?hero_id=${hero.id}&min_average_badge=${HIGH_BADGE_MIN}`,
+    )
     const analytics = {
       hero_id: hero.id,
       item_stats: rawItemStats.map(pruneItemStat),
       high_badge_min: HIGH_BADGE_MIN,
       high_badge_item_stats: rawHighBadgeItemStats.map(pruneItemStat),
-      ability_order_stats: rawAbilityOrderStats.map(pruneAbilityOrderStat),
+      ability_order_stats: topAbilityOrders(rawAbilityOrderStats),
+      high_badge_ability_order_stats: topAbilityOrders(rawHighBadgeAbilityOrderStats),
     }
     writeFileSync(join(OUT_DIR, 'analytics', `hero-${hero.id}.json`), JSON.stringify(analytics))
   }

@@ -47,6 +47,13 @@
 - Verified: `npm run build` clean; `npx vitest run` 41 passed/2 skipped (was 39/2); `npm run gate:heldout` OK (5 files, zero held-out references); `npx playwright test` 5/5. `node_modules` was missing at fire start (fresh container) — ran `npm ci` first.
 - T13 archived to GOALS_ARCHIVE.md. Queue was T13 → T14 → T10 → T11 → T12; next up is T14 (stat_sections tooltip rendering) — data already committed, nothing blocking.
 
+## 2026-09-01T18:58Z — orchestrator: 5 user reports → pipeline fixes + queue T15/T16/T18/T17
+- User reported: (a) same ability order on every hero, (b) wrong item pictures, (c) impossible Infernus build (Extra Spirit after Improved Spirit; fake item "upgrade_stabilizing_tripod"), (d) remove the top personal-insight block, (e) desktop should fill a Mac viewport.
+- Root causes found live (orchestrator egress): ability sequences live in field `abilities` (we guessed wrong names → all-null → global round-robin fallback); shop art is `shop_image_webp` not `image_webp`; catalog kept 78 disabled/non-shopable items; `component_items` upgrade chains were never captured.
+- fetch-data.mjs: shopable-only filter (251→173 items), `components: [ids]` per item, `pickShopImage`, ability_order_stats top-25 rows by matches + `high_badge_ability_order_stats` (badge ≥81). Snapshots refetched + committed; public/data 7.0→2.5MB. Spirit chain verified: Extra(968099481)→Improved(7409189)→Boundless(2519598785); hero-1 vs hero-15 top sequences differ; 15-step sequences.
+- snapshots.test.ts item floor 200→150 (old floor counted disabled entries; mechanical, orchestrator).
+- Verified: `npm run build` clean · `npm test` 48 passed/2 skipped · `npm run gate:heldout` OK.
+- Queue: T15 (per-hero ability order) → T16 (drop personal insight) → T18 (buyable builds: chains + catalog-only) → T17 (desktop layout; DESIGN.md Desktop section added). Image fix needed no ticket (same `image` field, better URL).
 ## 2026-09-01T18:06Z — orchestrator: FULL-SPEED mode (user request, budget healthy)
 - User: "Make things go faster; we're well under the usage limit." Decision log:
 - Tried routine cron `13,43 * * * *` → API rejects sub-1h intervals ("cron interval too short"). Routine stays hourly at :13 (that's the platform floor, not a choice).
