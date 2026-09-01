@@ -36,32 +36,36 @@ export default function BuildCard({ build, itemsById, abilities, validation, onS
         {validation && <span className="build-card__agreement">{validation.agreement_percent}% agreement</span>}
       </header>
 
-      {DISPLAY_SECTIONS.map((section) => {
-        const entries = build.items.filter((entry) => section.phases.includes(entry.phase))
-        if (entries.length === 0) return null
-        return (
-          <div key={section.key} className="phase-panel">
-            <h3 className="phase-panel__title">{section.label}</h3>
-            <div className="phase-panel__strip">
-              <ul className="item-list">
-                {entries.map((entry) => {
-                  const item = itemsById.get(entry.item_id)
-                  if (!item) return null
-                  return (
-                    <ItemRow
-                      key={entry.item_id}
-                      item={item}
-                      runningTotal={entry.running_total}
-                      core={validation ? coreByItemId.get(entry.item_id) ?? false : null}
-                      onSelect={onSelectItem}
-                    />
-                  )
-                })}
-              </ul>
+      {/* Wrapper lets desktop (>=1024px, T17) lay the phase panels side by
+          side as equal-width columns while mobile keeps them stacked. */}
+      <div className="build-card__phases">
+        {DISPLAY_SECTIONS.map((section) => {
+          const entries = build.items.filter((entry) => section.phases.includes(entry.phase))
+          if (entries.length === 0) return null
+          return (
+            <div key={section.key} className="phase-panel">
+              <h3 className="phase-panel__title">{section.label}</h3>
+              <div className="phase-panel__strip">
+                <ul className="item-list">
+                  {entries.map((entry) => {
+                    const item = itemsById.get(entry.item_id)
+                    if (!item) return null
+                    return (
+                      <ItemRow
+                        key={entry.item_id}
+                        item={item}
+                        runningTotal={entry.running_total}
+                        core={validation ? coreByItemId.get(entry.item_id) ?? false : null}
+                        onSelect={onSelectItem}
+                      />
+                    )
+                  })}
+                </ul>
+              </div>
             </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
 
       <AbilityOrderPanel abilities={abilities} abilityOrder={build.ability_order} />
     </section>

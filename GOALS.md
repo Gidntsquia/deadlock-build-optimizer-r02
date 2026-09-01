@@ -14,13 +14,6 @@
 
 ## Open tickets
 
-- [ ] **T17 — desktop fills the viewport; mobile UI unchanged (user request 2026-09-01: "fill the screen on a mac viewport but maintain its good mobile ui on phone")**
-  - Goal: on desktop widths the app stops being a narrow centered column and uses the screen. Breakpoint ~≥1024px: the layout goes fluid up to ~1440px max-width with comfortable margins; phase panels ("Early Game" / "Mid to Late Game") sit side by side when they fit, card grids grow their per-row count, the Ability Point Order panel spans full content width (no internal horizontal scroll when it fits). Below the breakpoint NOTHING changes — the 390×844 mobile experience is the reference and must stay pixel-equivalent.
-  - DESIGN.md's Desktop note (added 2026-09-01) is authoritative for the breakpoint/max-width values.
-  - Files: layout CSS (wherever T12 put it), `src/App.tsx` if structure needs a wrapper, `e2e/` — add a desktop spec at 1440×900 asserting no horizontal page scroll and content width ≥ 85% of viewport (capped by max-width), keep the mobile spec green. Update CLAUDE.md's "desktop is just a centered column" convention line to the new truth.
-  - Acceptance: (1) 1440×900 e2e: content fills per above, no page-level horizontal scroll; (2) 390×844 e2e unchanged and green; (3) zero hardcoded colors added outside the :root token block (T12 rule holds); (4) all suites green.
-  - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
-
 - [ ] **T19 — tune generator constants toward Zergggy agreement (user request 2026-09-01: "adjust the algorithm numbers until we have more agreement with the Zergggy build")**
   - Zergggy is now the TUNING set (see header rule). Data: `public/data/zergggy/matches.json` via the existing `src/validation/` scoring.
   - Goal: a deterministic offline sweep harness — `scripts/tune-generator.mjs` (or `src/validation/tune.ts` + npm script `tune`) — that (1) enumerates the generator's actual scoring constants (win-rate vs usage weights, damping K, high-badge blend cap/ramp, phase thresholds — read `src/generator/score.ts` and list what exists, don't invent), (2) grid-searches a bounded space (≤ ~500 combos), (3) for each combo generates the Infernus build and computes Zergggy agreement %, (4) picks argmax with deterministic ties (fewest changes from current values, then lexicographic parameter order).

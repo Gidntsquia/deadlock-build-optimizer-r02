@@ -20,7 +20,7 @@ Commands: `npm run dev` · `npm run build` · `npm test` (vitest/jsdom) · `npm 
 - `e2e/` — Playwright specs; real-browser 390×844 layout/tap-target checks against `npm run preview` (`npm run test:e2e`)
 
 ## Conventions
-- Mobile-first: design at 390×844, tap targets ≥40 px, desktop is just a centered column.
+- Mobile-first: design at 390×844, tap targets ≥40 px. Below 1024px desktop is a centered column; at/above 1024px the layout goes fluid up to a 1440px max-width filling the viewport (T17, see DESIGN.md's Desktop note).
 - Determinism: every sort gets a stable tie-break (ascending item id).
 - Runtime data comes from snapshots only; the only external URLs at runtime are item/hero image URLs stored in the snapshots.
 - Quote all URLs and paths in shell commands. Exclude `public/data` from grep/search (large JSON).

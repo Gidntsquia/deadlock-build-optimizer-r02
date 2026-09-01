@@ -173,7 +173,11 @@ degrades to the colored tile with no broken-image icon (tracked via `onError` st
 fallback). Tapping any item opens a bottom-sheet detail card (image, cost, tier, slot type, and the
 item's real in-game tooltip sections — T14, see below). No horizontal scroll at 390px; every
 tappable element (hero select, item cards, the detail sheet's close button) is ≥40px in its
-constrained dimension. Desktop is just the same layout centered in a ~480px column.
+constrained dimension. Below 1024px, desktop is the same layout centered in a ~480px column; at/above
+1024px (T17) the app goes fluid up to a 1440px max-width with 32–48px side margins, the two phase
+panels sit side by side as equal columns, the item-card grid grows its per-row count naturally from
+the same wrap rules, and the Ability Point Order panel spans the full content width — see DESIGN.md's
+Desktop note for the exact breakpoint/max-width values.
 
 Below the buy list, an **Ability Point Order** panel (`AbilityOrderPanel`, T11) replaces the old
 plain step list with the game's own timeline layout: a navy panel (`--panel-navy`) with one darker

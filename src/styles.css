@@ -562,3 +562,36 @@ h3 {
     padding: 16px 16px 48px;
   }
 }
+
+/* T17: at/above 1024px the app fills the monitor instead of staying a phone
+   column pinned to center — fluid up to a 1440px max-width with 32-48px
+   side margins (DESIGN.md's Desktop note). Below this breakpoint nothing
+   here applies; the 390-first layout above is untouched. */
+@media (min-width: 1024px) {
+  .app {
+    max-width: 1440px;
+    margin: 32px auto;
+    padding-left: 48px;
+    padding-right: 48px;
+  }
+
+  .build-card__phases {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .build-card__phases .phase-panel {
+    flex: 1;
+    min-width: 0;
+    margin: 12px 0 0;
+  }
+
+  .build-card__phases .phase-panel:first-child {
+    margin-left: 14px;
+  }
+
+  .build-card__phases .phase-panel:last-child {
+    margin-right: 14px;
+  }
+}
