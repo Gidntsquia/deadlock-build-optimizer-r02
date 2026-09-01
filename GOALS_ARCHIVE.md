@@ -23,3 +23,8 @@
   - `public/data/zergggy/matches.json` — VALIDATION ONLY. Account 35187362: Infernus (hero_id 1) real matchmaking matches (exclude private lobby / bot modes), newest ~30; fetch each match's `/v1/matches/{id}/metadata` and prune to match_id, won, and Zergggy's item purchases as [{item_id, game_time_s}]. ≥20 matches with purchase data required.
   - `public/data/meta.json` — fetched_at + counts.
   Notes (judgment calls, unverified from this sandbox): exact upstream JSON field names for items/heroes/analytics/match endpoints are not confirmed here (no egress) — pruning uses defensive multi-key fallback (`firstDefined`) and is expected to need a spot-check/adjustment pass against real payloads when T2b runs the fetch for real.
+
+- [x] **T2b — Run the fetch + commit snapshots — ORCHESTRATOR ONLY, fires must SKIP this ticket** (it needs API access the sandbox doesn't have; skip silently, no PROGRESS note needed, and take the next unchecked ticket)
+  Goal: orchestrator runs `node scripts/fetch-data.mjs` on the local machine, verifies, commits `public/data/**`.
+  Acceptance: snapshots.test.ts passes with data present; `du -sh public/data` < 15 MB; snapshots committed and pushed.
+  Verify: `node scripts/fetch-data.mjs && npm test`

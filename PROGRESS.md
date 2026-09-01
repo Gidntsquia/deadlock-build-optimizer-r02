@@ -1,5 +1,12 @@
 # PROGRESS — newest first, ≤25 lines per entry; past ~1,500 lines rotate all but newest ~10 entries verbatim to PROGRESS_ARCHIVE.md
 
+## 2026-09-01T08:30Z — orchestrator: T2b done — real fetch run locally, snapshots committed
+- Ran fetch locally (sandbox egress workaround). T2a's flagged field guesses needed 4 real-payload fixes to scripts/fetch-data.mjs, verified against live API + openapi.json: (1) match_mode/game_mode are NUMERIC enums (Unranked=1, Ranked=4, PrivateLobby=2, CoopBot=3; game_mode Normal=1) — string filter dropped everything, personal_matches was 0; (2) won = match_result === player_team (match_result is the winning team index; cross-checked vs match metadata winning_team); (3) hero abilities live at hero.items.signature1..4 as class_name refs → resolved via /v2/items/by-type/ability (Infernus: Napalm, Flame Dash, Afterburn, Concussive Combustion); (4) Zergggy purchase log includes ability-point spends — filtered to shop item ids only.
+- Orchestrator wrote these fixes directly (logged judgment call): fires can't verify against real payloads (no egress), so this was the pre-agreed T2b handoff; diff is confined to fetch-data.mjs field mapping.
+- Snapshot results: 251 items, 38 heroes (4 named abilities each), 38 analytics files, 549 personal standard matches, 30 Zergggy Infernus matches (21W/9L, shop purchases with times). public/data = 6.6 MB (< 15 MB).
+- Verified locally: `node scripts/fetch-data.mjs` clean rerun; `npm test` 8 passed/1 skipped; `npm run build` clean; `npm run gate:heldout` OK.
+- Next: T3 (generator) — snapshots are committed, so fires are unblocked.
+
 ## 2026-09-01T08:20Z — recovered stranded commits; T2a done: fetch-data.mjs + snapshots.test.ts
 - FOUND FIRST: repo was in detached HEAD 3 commits ahead of `main`/`origin/main` (the T1 scaffold + two orchestrator notes never reached origin — likely a prior fire didn't `git checkout main` before committing). Verified it was a clean fast-forward, reset `main` to that HEAD, pushed. `origin/main` now matches; no work was lost, but future fires: confirm `git symbolic-ref HEAD` / `git branch --show-current` is `main` before committing.
 - T2a done: scripts/fetch-data.mjs fully implemented (items/heroes/analytics/permutations/personal+zergggy matches, sequential fetch with 300ms gaps, one 5s retry on 429, meta.json written last) per GOALS.md's Outputs list. Kept code-only per SANDBOX EGRESS rule — did not attempt a live fetch.

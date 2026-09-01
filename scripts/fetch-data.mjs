@@ -83,15 +83,14 @@ function isActiveHero(hero) {
   return true
 }
 
-function pruneAbility(ability) {
-  return {
-    id: firstDefined(ability, ['id', 'ability_id']),
-    name: ability.name,
-  }
-}
-
-function pruneHero(hero) {
-  const abilities = (hero.abilities ?? []).slice(0, 4).map(pruneAbility)
+// Hero abilities live in hero.items.signature1..4 as class_name refs into the
+// assets ability catalog (verified against live payloads 2026-09-01).
+function pruneHero(hero, abilityByClass) {
+  const abilities = [1, 2, 3, 4].map((n) => {
+    const className = hero.items?.[`signature${n}`]
+    const ability = abilityByClass.get(className)
+    return { id: ability?.id ?? className, name: ability?.name ?? className }
+  })
   return {
     id: hero.id,
     name: hero.name,
@@ -125,25 +124,34 @@ function prunePermutationStat(row) {
   }
 }
 
-const STANDARD_MATCH_MODES = new Set(['Ranked', 'Unranked'])
+// match-history fields are numeric (verified live 2026-09-01):
+// match_mode (ActiveMatchMode enum): 1=Unranked, 2=PrivateLobby, 3=CoopBot, 4=Ranked
+// game_mode (ActiveMatchGameMode enum): 1=Normal, 4=StreetBrawl
+// match_result = index of the winning team; player won iff it equals player_team.
+const STANDARD_MATCH_MODES = new Set([1, 4, 'Unranked', 'Ranked'])
+
+function matchWon(row) {
+  return firstDefined(row, ['match_result']) === firstDefined(row, ['player_team'])
+}
 
 function prunePersonalMatch(row) {
   return {
     hero_id: firstDefined(row, ['hero_id']),
-    won: firstDefined(row, ['match_result', 'won', 'win']) === true || firstDefined(row, ['match_result']) === 'Win',
+    won: matchWon(row),
     duration_s: firstDefined(row, ['duration_s', 'match_duration_s', 'duration']),
     start_time: firstDefined(row, ['start_time']),
   }
 }
 
 function isStandardMatch(row) {
-  const mode = firstDefined(row, ['match_mode'])
-  return mode == null || STANDARD_MATCH_MODES.has(mode)
+  const gameMode = firstDefined(row, ['game_mode'])
+  const normalGame = gameMode == null || gameMode === 1 || gameMode === 'Normal'
+  return normalGame && STANDARD_MATCH_MODES.has(firstDefined(row, ['match_mode']))
 }
 
+// Real matchmaking = same standard set (excludes private lobby, bots, tutorial, hero labs).
 function isRealMatch(row) {
-  const mode = firstDefined(row, ['match_mode'])
-  return mode !== 'Private Lobby' && mode !== 'Sandbox' && !`${mode}`.toLowerCase().includes('bot')
+  return isStandardMatch(row)
 }
 
 async function main() {
@@ -154,11 +162,14 @@ async function main() {
   console.log('fetch-data: items')
   const rawItems = await fetchJson(`${ASSETS_BASE}/v2/items/by-type/upgrade`)
   const items = rawItems.map(pruneItem)
+  const shopItemIds = new Set(items.map((i) => i.id))
   writeFileSync(join(OUT_DIR, 'items.json'), JSON.stringify(items))
 
   console.log('fetch-data: heroes')
+  const rawAbilities = await fetchJson(`${ASSETS_BASE}/v2/items/by-type/ability`)
+  const abilityByClass = new Map(rawAbilities.map((a) => [a.class_name, a]))
   const rawHeroes = await fetchJson(`${ASSETS_BASE}/v2/heroes`)
-  const heroes = rawHeroes.filter(isActiveHero).map(pruneHero)
+  const heroes = rawHeroes.filter(isActiveHero).map((h) => pruneHero(h, abilityByClass))
   writeFileSync(join(OUT_DIR, 'heroes.json'), JSON.stringify(heroes))
 
   console.log(`fetch-data: analytics for ${heroes.length} heroes`)
@@ -200,14 +211,17 @@ async function main() {
     const players = metadata.players ?? metadata.match_info?.players ?? []
     const player = players.find((p) => firstDefined(p, ['account_id']) === ZERGGGY_ACCOUNT_ID)
     const purchaseLog = player?.item_purchases ?? player?.items ?? []
-    const purchases = purchaseLog.map((p) => ({
-      item_id: firstDefined(p, ['item_id']),
-      game_time_s: firstDefined(p, ['game_time_s', 'time', 'game_time']),
-    }))
+    // The log also records ability-point spends; keep only shop (upgrade) items.
+    const purchases = purchaseLog
+      .map((p) => ({
+        item_id: firstDefined(p, ['item_id']),
+        game_time_s: firstDefined(p, ['game_time_s', 'time', 'game_time']),
+      }))
+      .filter((p) => shopItemIds.has(p.item_id))
     if (purchases.length > 0) {
       zergMatches.push({
         match_id: matchId,
-        won: firstDefined(row, ['match_result', 'won', 'win']) === true || firstDefined(row, ['match_result']) === 'Win',
+        won: matchWon(row),
         purchases,
       })
     }

@@ -13,11 +13,6 @@
 
 ## Open tickets
 
-- [ ] **T2b — Run the fetch + commit snapshots — ORCHESTRATOR ONLY, fires must SKIP this ticket** (it needs API access the sandbox doesn't have; skip silently, no PROGRESS note needed, and take the next unchecked ticket)
-  Goal: orchestrator runs `node scripts/fetch-data.mjs` on the local machine, verifies, commits `public/data/**`.
-  Acceptance: snapshots.test.ts passes with data present; `du -sh public/data` < 15 MB; snapshots committed and pushed.
-  Verify: `node scripts/fetch-data.mjs && npm test`
-
 - [ ] **T3 — Deterministic build generator** (needs T2b's committed snapshots for its tests; if `public/data/meta.json` is absent, skip to T4 — its tests are fixture-based)
   Goal: src/generator/ produces ≥2 named builds for ANY active hero from aggregate snapshots only.
   Files: src/generator/**, src/test/generator.test.ts, scripts/gate-heldout.mjs (real implementation).
