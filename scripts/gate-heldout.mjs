@@ -5,7 +5,9 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 const GENERATOR_DIR = 'src/generator'
-const NEEDLE = /zergggy/i
+// zergggy = tuning set (still off-limits to the generator at runtime);
+// heldout-ctc = the held-out test set (user redesign 2026-09-01).
+const NEEDLE = /zergggy|heldout[-_]?ctc/i
 
 function walk(dir) {
   let files = []
