@@ -1,6 +1,6 @@
 import type { Build } from '../generator'
 import { computeCoreSet } from './coreSet'
-import { fetchZergMatches } from './loadMatches'
+import { fetchCtcMatches, fetchZergMatches } from './loadMatches'
 import { buildOrderPreferences } from './orderPreferences'
 import type { CoreSetResult, ValidationReport, ZergMatch } from './types'
 
@@ -69,11 +69,23 @@ export function validateBuildAgainstMatches(build: Build, matches: ZergMatch[]):
   return validateBuild(build, coreSet, orderPreferences)
 }
 
-// UI entry point (T5): fetches the held-out matches and validates every
-// build in one call, keyed by build name, so callers outside this directory
-// never need to know the held-out data's source.
+// UI entry point (T5): fetches the Zergggy (tuning-set) matches and validates
+// every build in one call, keyed by build name, so callers outside this
+// directory never need to know the data's source.
 export async function validateBuildsAgainstHeldOut(builds: Build[]): Promise<Map<string, ValidationReport>> {
   const matches = await fetchZergMatches()
+  const coreSet = computeCoreSet(matches)
+  const coreItemIds = new Set(coreSet.items.keys())
+  const orderPreferences = buildOrderPreferences(matches, coreItemIds)
+  return new Map(builds.map((build) => [build.name, validateBuild(build, coreSet, orderPreferences)]))
+}
+
+// UI entry point (T20): same shape as validateBuildsAgainstHeldOut but
+// against ctc's Drifter matches — the actual held-out test set. Callers
+// (App.tsx) must never feed this report back into generator tuning; it is
+// display-only, a one-time finding recorded in PROGRESS.md.
+export async function validateBuildsAgainstCtc(builds: Build[]): Promise<Map<string, ValidationReport>> {
+  const matches = await fetchCtcMatches()
   const coreSet = computeCoreSet(matches)
   const coreItemIds = new Set(coreSet.items.keys())
   const orderPreferences = buildOrderPreferences(matches, coreItemIds)

@@ -85,10 +85,11 @@ describe('agreement scoring (fixture)', () => {
   })
 })
 
-// HELD-OUT RULE: only src/validation/ may reference the zergggy path/string,
-// among the app's production modules. src/test/ is exempt — snapshots.test.ts
-// (T2a) already asserts public/data/zergggy/matches.json's own shape, which
-// is snapshot-integrity testing, not generator/scoring logic reading it.
+// HELD-OUT RULE: only src/validation/ may reference the zergggy/heldout-ctc
+// path/string, among the app's production modules. src/test/ is exempt —
+// snapshots.test.ts (T2a) already asserts public/data/zergggy/matches.json's
+// own shape, which is snapshot-integrity testing, not generator/scoring
+// logic reading it.
 describe('held-out isolation', () => {
   function walk(dir: string): string[] {
     let files: string[] = []
@@ -109,13 +110,13 @@ describe('held-out isolation', () => {
     return files
   }
 
-  it('no production module outside src/validation/ references "zergggy"', () => {
+  it('no production module outside src/validation/ references "zergggy" or "heldout-ctc"', () => {
     const srcDir = join(process.cwd(), 'src')
     const exemptDirs = [join(process.cwd(), 'src/validation'), join(process.cwd(), 'src/test')]
     const offenders: string[] = []
     for (const file of walk(srcDir)) {
       if (exemptDirs.some((dir) => file.startsWith(dir))) continue
-      if (/zergggy/i.test(readFileSync(file, 'utf8'))) offenders.push(file)
+      if (/zergggy|heldout[-_]?ctc/i.test(readFileSync(file, 'utf8'))) offenders.push(file)
     }
     expect(offenders).toEqual([])
   })
@@ -137,6 +138,28 @@ describe.skipIf(!hasSnapshots)('agreement scoring (real snapshot)', () => {
     const build = generateBuilds(infernus, items, analytics)
     const coreSet = computeCoreSet(zergMatches)
     const orderPreferences = buildOrderPreferences(zergMatches, new Set(coreSet.items.keys()))
+    const report = validateBuild(build, coreSet, orderPreferences)
+
+    expect(report.agreement_percent).toBeGreaterThanOrEqual(0)
+    expect(report.agreement_percent).toBeLessThanOrEqual(100)
+    expect(report.items).toHaveLength(build.items.length)
+  })
+
+  // T20: ctc's Drifter matches are the held-out TEST set — this test only
+  // asserts the report is well-formed. Never assert a specific agreement %
+  // here and never let a low number change src/generator/ (EXPERIMENT
+  // INTEGRITY, GOALS.md T20).
+  it('produces a bounded agreement % for a real generated Drifter build against ctc', async () => {
+    const { generateBuilds } = await import('../generator')
+    const items = readJson<import('../generator').Item[]>('items.json')
+    const heroes = readJson<import('../generator').Hero[]>('heroes.json')
+    const drifter = heroes.find((h) => h.name === 'Drifter')!
+    const analytics = readJson<import('../generator').HeroAnalytics>('analytics', `hero-${drifter.id}.json`)
+    const ctcMatches = readJson<ZergMatch[]>('heldout-ctc', 'matches.json')
+
+    const build = generateBuilds(drifter, items, analytics)
+    const coreSet = computeCoreSet(ctcMatches)
+    const orderPreferences = buildOrderPreferences(ctcMatches, new Set(coreSet.items.keys()))
     const report = validateBuild(build, coreSet, orderPreferences)
 
     expect(report.agreement_percent).toBeGreaterThanOrEqual(0)

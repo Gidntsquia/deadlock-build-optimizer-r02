@@ -123,6 +123,20 @@ describe.skipIf(!hasSnapshots)('App', () => {
       }
     }
   })
+
+  it("Drifter shows a ctc-labeled agreement chip; Infernus's chip stays unlabeled (T20)", async () => {
+    render(<App />)
+
+    const infernusChip = await screen.findByText(/% agreement/)
+    expect(infernusChip.textContent).toMatch(/^\d+% agreement$/)
+
+    const heroSelect = await screen.findByLabelText<HTMLSelectElement>(/hero/i)
+    fireEvent.change(heroSelect, { target: { value: '64' } })
+    await screen.findAllByRole('heading', { level: 2, name: /^Drifter / })
+
+    const drifterChip = await screen.findByText(/% agreement \(ctc\)/)
+    expect(drifterChip).toBeInTheDocument()
+  })
 })
 
 describe('isMeaningfulStatLine', () => {

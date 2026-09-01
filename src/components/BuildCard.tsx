@@ -7,8 +7,11 @@ interface BuildCardProps {
   build: Build
   itemsById: Map<number, Item>
   abilities: Ability[]
-  // null when this hero has no validation report (only Infernus does).
+  // null when this hero has no validation report (currently Infernus and Drifter).
   validation: ValidationReport | null
+  // Player name to suffix onto the chip (e.g. "ctc" for Drifter's held-out
+  // report, T20) — null keeps Infernus's tuning-set chip unlabeled, unchanged.
+  validationLabel?: string | null
   onSelectItem: (itemId: number) => void
 }
 
@@ -25,7 +28,7 @@ const DISPLAY_SECTIONS: { key: string; label: string; phases: BuildPhase[] }[] =
 ]
 const ARCHETYPE_LABELS: Record<Build['archetype'], string> = { weapon: 'Weapon build', spirit: 'Spirit build' }
 
-export default function BuildCard({ build, itemsById, abilities, validation, onSelectItem }: BuildCardProps) {
+export default function BuildCard({ build, itemsById, abilities, validation, validationLabel, onSelectItem }: BuildCardProps) {
   const coreByItemId = new Map(validation?.items.map((flag) => [flag.item_id, flag.core]) ?? [])
 
   return (
@@ -33,7 +36,11 @@ export default function BuildCard({ build, itemsById, abilities, validation, onS
       <header className="build-card__header">
         <h2>{build.name}</h2>
         <p className="build-card__archetype">{ARCHETYPE_LABELS[build.archetype]}</p>
-        {validation && <span className="build-card__agreement">{validation.agreement_percent}% agreement</span>}
+        {validation && (
+          <span className="build-card__agreement">
+            {validation.agreement_percent}% agreement{validationLabel ? ` (${validationLabel})` : ''}
+          </span>
+        )}
       </header>
 
       {/* Wrapper lets desktop (>=1024px, T17) lay the phase panels side by

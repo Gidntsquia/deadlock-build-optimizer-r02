@@ -14,10 +14,4 @@
 
 ## Open tickets
 
-- [ ] **T20 — held-out test: agreement with ctc's Drifter builds (user request 2026-09-01; run AFTER T19 lands)**
-  - Data (committed by orchestrator): `public/data/heldout-ctc/matches.json` — player "ctc" (NA leaderboard rank 2, account 1294549649), their 30 most recent Drifter (hero 64) matches with shop purchases; same shape as zergggy/matches.json.
-  - Goal: extend `src/validation/` with a ctc core-set + agreement scoring (same ≥30% core-set rule), compute agreement of our exported Drifter build, display the agreement chip on Drifter exactly like Infernus's Zergggy chip (label it with the player name), and record the number in PROGRESS.md as a FINDING.
-  - EXPERIMENT INTEGRITY: this number must never drive any generator change — no follow-up "fix" commits touching `src/generator/` in response to it. Low agreement is a finding. gate:heldout enforces the string ban in `src/generator/`.
-  - Files: `src/validation/`, the component rendering the agreement chip, `src/test/validation.test.ts`, README (validation section).
-  - Acceptance: (1) Drifter shows a ctc agreement chip; (2) Infernus's Zergggy chip unchanged; (3) PROGRESS.md reports the % as a finding; (4) all suites + gates green.
-  - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
+(none — pull from ROADMAP.md's known gaps if the queue is empty at the next fire)

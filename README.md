@@ -2,8 +2,10 @@
 
 A mobile-first React web app that generates data-driven item builds — item list, buy order, and
 ability level-up order — for any active Deadlock hero (Infernus is the tuned default), and scores
-each generated build against a **held-out** sample of a real top player's (Zergggy's) actual
-Infernus purchases. That held-out data measures the generator; it never feeds it.
+each generated build against real top players' actual purchases. A top Infernus player's sample
+("Zergggy") is the **tuning set** — the generator's scoring constants are deliberately tuned toward
+higher agreement with it (T19). A second, independent top Drifter player's sample ("ctc") is the
+**held-out test set** — measured and reported, never tuned toward (T20).
 
 Static frontend only: no backend, no database, no auth, no paid services. One Node script
 (`scripts/fetch-data.mjs`) builds the data snapshots the app reads at runtime; everything else is
@@ -20,7 +22,8 @@ npm run dev           # local dev server
 npm run build          # production build (tsc -b && vite build)
 npm test                # vitest/jsdom unit + component tests
 npm run test:e2e         # Playwright, real-browser 390x844 checks — run `npm run build` first
-npm run gate:heldout      # fails if src/generator/ ever references the held-out data
+npm run gate:heldout      # fails if src/generator/ ever references zergggy/ or heldout-ctc/
+npm run tune              # T19: offline sweep of the generator's scoring constants vs. Zergggy agreement
 ```
 
 `public/data/**` is committed to the repo, so `npm run dev` / `npm run build` / `npm test` all work
@@ -39,7 +42,8 @@ talks to at runtime).
 | `public/data/analytics/hero-<id>.json` | Per-hero item win/usage stats and ability-order stats, for every active hero. |
 | `public/data/analytics/infernus-permutations.json` | Item-permutation stats for Infernus only (a fetch-budget decision — every other hero's analytics come from the per-hero file above). |
 | `public/data/personal/matches.json` | One account's standard-matchmaking match history (hero, win/loss, duration, start time). Fetched but currently unused by the UI — the personal-insight banner that read it was removed (T16). |
-| `public/data/zergggy/matches.json` | **Held-out only.** ~30 of Zergggy's real Infernus matches (real matchmaking, private lobbies/bots excluded), each with `{item_id, game_time_s}` purchases. |
+| `public/data/zergggy/matches.json` | **Tuning set** (`src/validation/` only). ~30 of Zergggy's real Infernus matches (real matchmaking, private lobbies/bots excluded), each with `{item_id, game_time_s}` purchases. |
+| `public/data/heldout-ctc/matches.json` | **Held-out test set** (`src/validation/` only, never tuned toward). 30 of ctc's real Drifter matches (NA leaderboard rank 2), same shape as the row above. |
 | `public/data/meta.json` | `fetched_at` + counts, written last. |
 
 Politeness: requests are sequential with a ≥300 ms gap, with one retry after a 5 s backoff on
@@ -48,10 +52,14 @@ HTTP 429. Total snapshot size is kept under 15 MB by pruning to the fields above
 ## The generator (`src/generator/`)
 
 Pure function of three snapshot inputs (`heroes.json`, `items.json`,
-`analytics/hero-<id>.json`) — **never** `public/data/zergggy/**`. `npm run gate:heldout` greps
-`src/generator/` for the string "zergggy" (case-insensitive) and fails the build if it finds one;
-`src/generator` never tunes its weights against the held-out agreement score either — a low score
-is a finding about the generator, not something to chase.
+`analytics/hero-<id>.json`) — **never** `public/data/zergggy/**` or `public/data/heldout-ctc/**`
+directly. `npm run gate:heldout` greps `src/generator/` for either path's string
+(case-insensitive) and fails the build if it finds one. The generator's scoring constants (T19,
+`src/generator/score.ts`'s `ScoreConstants`) ARE tuned toward the Zergggy tuning-set agreement
+score — via `scripts/tune-generator.mjs`, which lives outside `src/generator/` and applies the
+winner back in as plain numbers — but `src/generator` never reads the tuning-set data itself, and
+never tunes toward the ctc held-out agreement score; a low ctc number is a finding, not something
+to chase.
 
 For each hero it internally builds two candidates — a **Weapon**-leaning build and a
 **Spirit**-leaning build — by scoring every item and greedily filling early/mid/late buy-phase
@@ -67,9 +75,10 @@ so the chain's highest-scoring member wins and the next-best non-chain candidate
 matches how the game itself works (buying an upgrade consumes/obsoletes its component). It then exports
 only the single higher-scoring candidate (`pickBestBuild`, T13): each candidate's total score is the
 sum of its selected items' composite scores; ties break on ascending archetype name, then on the
-build's item-id sequence. The pick is generator-internal only — it never consults held-out Zergggy
-agreement (that would be tuning to the held-out set); the UI still shows the exported build's
-agreement % as before, purely as a display metric. The composite item score:
+build's item-id sequence. The pick is generator-internal only, at request time — it never consults
+the Zergggy/ctc agreement score to choose an archetype (that's a separate, offline concern — see
+T19's tuning harness above); the UI still shows the exported build's agreement % as before, purely
+as a display metric. The composite item score:
 
 ```
 score = 0.35 * confidenceDampedWinRate   (shrink the BLENDED win rate below toward the hero's mean
@@ -113,8 +122,8 @@ to the two raw sample sizes) instead of the item's raw overall wins/matches.
 `generator.test.ts`'s "scoreItem high-elo blend" suite covers both the "beats the reverse case" and
 "degrades toward overall-only below the sample floor" behaviors with fixtures.
 
-Checked against the held-out Zergggy agreement score (never tuned toward it): Infernus's Weapon and
-Spirit builds score identically (35% / 51%) before and after this change — the blend didn't move
+Checked against the Zergggy agreement score at the time (pre-T19 tuning): Infernus's Weapon and
+Spirit builds scored identically (35% / 51%) before and after this change — the blend didn't move
 the top-ranked items enough to change either build's item selection for this particular hero/snapshot.
 
 Ability level-up order (T15) is built per-hero from the snapshot's own AP-spend data:
@@ -125,14 +134,23 @@ later occurrences = upgrade. The old deterministic fallback (unlock 1–4, then 
 ×2, 12 steps total) still exists in `src/generator/abilityOrder.ts` and is used only when a hero has
 no usable sequence row or a chosen row references an ability id outside its own 4.
 
-## Held-out validation (`src/validation/`)
+## Tuning-set and held-out validation (`src/validation/`)
 
-Only `src/validation/` may read `public/data/zergggy/**` — enforced by `gate:heldout` for
-`src/generator/`, and by a repo-wide isolation test (`validation.test.ts`) that greps every other
-`src/` module (excluding `src/test/`, which only tests the held-out snapshot's own shape) for the
-same string.
+Only `src/validation/` may read `public/data/zergggy/**` or `public/data/heldout-ctc/**` —
+enforced by `gate:heldout` for `src/generator/`, and by a repo-wide isolation test
+(`validation.test.ts`) that greps every other `src/` module (excluding `src/test/`, which only
+tests the held-out snapshots' own shape) for either path's string.
 
-**Core set**: an item is "core" if it was bought in ≥30% of Zergggy's win-weighted sample —
+The same core-set + agreement-% scoring (below) runs against two independent player samples:
+
+- **Zergggy** (Infernus) — the **tuning set**. `src/generator/score.ts`'s scoring constants are
+  deliberately tuned toward this agreement score (T19, `scripts/tune-generator.mjs`). Shown as an
+  unlabeled agreement chip on Infernus's build.
+- **ctc** (Drifter) — the **held-out test set**. Never tuned toward — `src/generator/` never reads
+  it and no ticket may change generator code in response to this number (T20 EXPERIMENT
+  INTEGRITY). Shown as a "% agreement (ctc)" labeled chip on Drifter's build, purely informational.
+
+**Core set**: an item is "core" if it was bought in ≥30% of the sample's win-weighted matches —
 otherwise it's an "experiment" and is excluded from scoring entirely (not penalized, just ignored).
 
 ```
@@ -141,20 +159,21 @@ matchWeight(m) = 1.5 if m.won else 1.0
 threshold = 0.30, inclusive
 ```
 
-**Agreement %** — how well a *generated* build matches Zergggy's known play, never a suggestion to
-copy his items:
+**Agreement %** — how well a *generated* build matches the sampled player's known play, never a
+suggestion to copy their items:
 
 ```
 agreement% = round(100 * (0.6 * coreSetOverlap + 0.4 * buyOrderAgreement)), clamped to [0, 100]
 
 coreSetOverlap    = |build items in the core set| / |core set|
 buyOrderAgreement = win-weighted pairwise concordance of the build's shared core-set items against
-                    Zergggy's majority first-purchase order; a pair/build with no signal defaults
-                    to the neutral 0.5, not 0
+                    the sample's majority first-purchase order; a pair/build with no signal
+                    defaults to the neutral 0.5, not 0
 ```
 
-Because Zergggy's sample is Infernus-only, the core/not-core badge and agreement % only appear on
-Infernus's builds — every other hero's builds render normally, just without a validation report.
+Each sample is single-hero (Zergggy: Infernus only; ctc: Drifter only), so the core/not-core badge
+and agreement % only appear on that one hero's build — every other hero's builds render normally,
+just without a validation report.
 
 ## UI (`src/App.tsx`, `src/components/**`)
 

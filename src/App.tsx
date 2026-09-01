@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import BuildCard from './components/BuildCard'
 import HeroPicker from './components/HeroPicker'
 import ItemDetailSheet from './components/ItemDetailSheet'
-import { INFERNUS_HERO_ID } from './constants'
+import { DRIFTER_HERO_ID, INFERNUS_HERO_ID } from './constants'
 import { loadHeroAnalytics, loadHeroes, loadItems } from './data/loaders'
 import type { Build, Hero, Item } from './generator'
 import { generateBuilds } from './generator'
 import './styles.css'
 import type { ValidationReport } from './validation'
-import { validateBuildsAgainstHeldOut } from './validation'
+import { validateBuildsAgainstCtc, validateBuildsAgainstHeldOut } from './validation'
 
 type LoadState = 'loading' | 'ready' | 'error'
 
@@ -21,6 +21,9 @@ function App() {
   const [build, setBuild] = useState<Build | null>(null)
   const [buildState, setBuildState] = useState<LoadState>('loading')
   const [validation, setValidation] = useState<ValidationReport | null>(null)
+  // Player name to suffix onto the agreement chip (e.g. "ctc") — null keeps
+  // Infernus's existing unlabeled tuning-set chip exactly as it was (T20).
+  const [validationLabel, setValidationLabel] = useState<string | null>(null)
 
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null)
 
@@ -51,6 +54,7 @@ function App() {
     let cancelled = false
     setBuildState('loading')
     setValidation(null)
+    setValidationLabel(null)
 
     loadHeroAnalytics(hero.id)
       .then((analytics) => {
@@ -62,6 +66,18 @@ function App() {
           validateBuildsAgainstHeldOut([generated])
             .then((reports) => {
               if (!cancelled) setValidation(reports.get(generated.name) ?? null)
+            })
+            .catch(() => {
+              // Validation is best-effort UI polish; the build still renders without it.
+            })
+        } else if (hero.id === DRIFTER_HERO_ID) {
+          // T20: ctc's Drifter matches are the held-out test set — display
+          // only, a one-time PROGRESS.md finding, never tuned toward.
+          validateBuildsAgainstCtc([generated])
+            .then((reports) => {
+              if (cancelled) return
+              setValidation(reports.get(generated.name) ?? null)
+              setValidationLabel('ctc')
             })
             .catch(() => {
               // Validation is best-effort UI polish; the build still renders without it.
@@ -109,6 +125,7 @@ function App() {
                 itemsById={itemsById}
                 abilities={selectedHero?.abilities ?? []}
                 validation={validation}
+                validationLabel={validationLabel}
                 onSelectItem={setSelectedItemId}
               />
             </div>
