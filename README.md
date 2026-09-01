@@ -34,7 +34,7 @@ talks to at runtime).
 
 | File | Contents |
 | --- | --- |
-| `public/data/items.json` | All shopable upgrade items: id, name, cost, tier, slot type, image URL, stat lines (scoring only), `stat_sections` (real in-game tooltip display data, T14), `is_active_item`. ≥200 items. |
+| `public/data/items.json` | ONLY real, currently-shopable items (173; disabled/non-shopable entries like `upgrade_stabilizing_tripod` excluded, T18): id, name, cost, tier, slot type, image URL, stat lines (scoring only), `stat_sections` (real in-game tooltip display data, T14), `is_active_item`, `components` (catalog ids of the items this one upgrades from, T18). |
 | `public/data/heroes.json` | Every **active** hero (disabled/in-development heroes excluded): id, name, base stats, stat growth, and the hero's 4 real ability ids + names. |
 | `public/data/analytics/hero-<id>.json` | Per-hero item win/usage stats and ability-order stats, for every active hero. |
 | `public/data/analytics/infernus-permutations.json` | Item-permutation stats for Infernus only (a fetch-budget decision — every other hero's analytics come from the per-hero file above). |
@@ -57,7 +57,14 @@ For each hero it internally builds two candidates — a **Weapon**-leaning build
 **Spirit**-leaning build — by scoring every item and greedily filling early/mid/late buy-phase
 quotas (4/4/5 items, tier bands 800/1600/3200/6400/9999 souls → early/early/mid/late/late) by score,
 backfilling to a 12-item floor if a phase runs short, and capping at 2 activated-ability items per
-build (`AbilityCooldown != 0`, the only per-item activation signal in this snapshot). It then exports
+build (`AbilityCooldown != 0`, the only per-item activation signal in this snapshot). Only catalog
+items (`items.json`, ONLY real currently-shopable items) are ever scored or picked — an analytics
+`item_stats`/`high_badge_item_stats` row for an id outside the catalog is filtered out before scoring
+(T18). A build also never contains two items from the same upgrade chain (`item.components`, followed
+transitively both directions via `itemChains.ts`'s `buildItemChainGroups`): while filling phase quotas
+in score order, picking an item blocks every other member of its chain group from being picked later,
+so the chain's highest-scoring member wins and the next-best non-chain candidate backfills the slot —
+matches how the game itself works (buying an upgrade consumes/obsoletes its component). It then exports
 only the single higher-scoring candidate (`pickBestBuild`, T13): each candidate's total score is the
 sum of its selected items' composite scores; ties break on ascending archetype name, then on the
 build's item-id sequence. The pick is generator-internal only — it never consults held-out Zergggy
@@ -246,7 +253,7 @@ documented fallback rather than fabricated data:
 - **`heroes.json` base stats** are structurally identical across all 38 heroes (a field-mapping gap
   in the fetch — `starting_stats`/`level_scaling` didn't carry real per-hero values from this API).
   Archetype weighting uses each item's own `item_slot_type` instead of hero scaling stats.
-- **`active_description` / `passive_description`** are `null` for all 251 items — the build's
+- **`active_description` / `passive_description`** are `null` for all items in the catalog — the build's
   activated-item cap uses a stat-line heuristic (nonzero `AbilityCooldown`, `is_active_item` since
   T14 is available as the real flag for future display use); the item detail card no longer renders
   these two always-null fields at all — `stat_sections`' own per-section descriptions (T14) are the

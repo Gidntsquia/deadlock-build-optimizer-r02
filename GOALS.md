@@ -14,13 +14,6 @@
 
 ## Open tickets
 
-- [ ] **T18 — builds must be buyable in-game: respect upgrade chains, catalog-only items (user bug report 2026-09-01: Infernus build buys Extra Spirit after Improved Spirit; shows "upgrade_stabilizing_tripod", not a real item)**
-  - Data (already committed by orchestrator): `items.json` now contains ONLY real shop items (173, was 251 — disabled/non-shopable entries like upgrade_stabilizing_tripod are gone), and each item carries `components: number[]` (catalog ids of the items it upgrades from; buying the upgrade consumes the component, which then becomes unpurchasable in-game).
-  - Generator rules: (1) every recommended item id must exist in the catalog — analytics rows whose item_id is not in items.json are skipped everywhere (score, buy order, permutations); (2) a build never contains two items from the same upgrade chain: if a picked item's `components` (follow transitively) or any item that lists it as a component is also picked, keep the higher-scoring one, drop the other, refill from the next-best candidate — deterministic (score desc, then ascending item id).
-  - Files: `src/generator/` (score/index/types), `src/test/generator.test.ts`.
-  - Acceptance: (1) fixture test: chain pair in candidates → exactly one survives, the higher-scoring, refill happens; (2) snapshot-backed test: no hero's build contains an id absent from items.json, and no build contains an item plus one of its components; (3) Infernus build specifically contains at most one of the Spirit chain; (4) determinism green; (5) all suites green.
-  - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
-
 - [ ] **T17 — desktop fills the viewport; mobile UI unchanged (user request 2026-09-01: "fill the screen on a mac viewport but maintain its good mobile ui on phone")**
   - Goal: on desktop widths the app stops being a narrow centered column and uses the screen. Breakpoint ~≥1024px: the layout goes fluid up to ~1440px max-width with comfortable margins; phase panels ("Early Game" / "Mid to Late Game") sit side by side when they fit, card grids grow their per-row count, the Ability Point Order panel spans full content width (no internal horizontal scroll when it fits). Below the breakpoint NOTHING changes — the 390×844 mobile experience is the reference and must stay pixel-equivalent.
   - DESIGN.md's Desktop note (added 2026-09-01) is authoritative for the breakpoint/max-width values.

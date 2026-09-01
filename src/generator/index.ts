@@ -1,4 +1,5 @@
 import { buildAbilityOrder } from './abilityOrder'
+import { buildItemChainGroups } from './itemChains'
 import { heroMeanWinRate, maxHighBadgeItemMatches, maxItemMatches, scoreItem } from './score'
 import { isActiveItem, statValuePerSoul } from './statUtils'
 import type { Archetype, Build, BuildItemEntry, BuildPhase, Hero, HeroAnalytics, Item, ItemStat } from './types'
@@ -70,6 +71,7 @@ function buildForArchetype(
   maxValuePerSoul: number,
   archetype: Archetype,
   abilityOrder: Build['ability_order'],
+  chainGroups: Map<number, Set<number>>,
 ): { build: Build; totalScore: number } {
   const scored = items
     .map((item) => {
@@ -94,15 +96,23 @@ function buildForArchetype(
 
   const phaseBuckets: Record<BuildPhase, Item[]> = { early: [], mid: [], late: [] }
   const selectedIds = new Set<number>()
+  // Once a chain member is picked, every other member of its upgrade chain
+  // (components, followed transitively both ways — see itemChains.ts) is
+  // blocked: in-game, buying an upgrade consumes/obsoletes the rest of its
+  // chain, so a build may contain at most one item per chain (T18).
+  const blockedByChain = new Set<number>()
   let activeCount = 0
 
   const tryTake = (item: Item, phase: BuildPhase) => {
     phaseBuckets[phase].push(item)
     selectedIds.add(item.id)
     if (isActiveItem(item)) activeCount++
+    const chain = chainGroups.get(item.id)
+    if (chain) for (const chainId of chain) if (chainId !== item.id) blockedByChain.add(chainId)
   }
 
   for (const { item } of scored) {
+    if (blockedByChain.has(item.id)) continue
     const phase = tierPhase(item.item_tier)
     if (phaseBuckets[phase].length >= PHASE_TARGET_COUNTS[phase]) continue
     if (isActiveItem(item) && activeCount >= ACTIVE_ITEM_CAP) continue
@@ -116,7 +126,7 @@ function buildForArchetype(
   if (total() < MIN_TOTAL_ITEMS) {
     for (const { item } of scored) {
       if (total() >= MIN_TOTAL_ITEMS) break
-      if (selectedIds.has(item.id)) continue
+      if (selectedIds.has(item.id) || blockedByChain.has(item.id)) continue
       if (isActiveItem(item) && activeCount >= ACTIVE_ITEM_CAP) continue
       tryTake(item, tierPhase(item.item_tier))
     }
@@ -149,13 +159,23 @@ function buildForArchetype(
 // single highest-scoring one (see pickBestBuild) — the app shows exactly one
 // recommended build per hero (T13).
 export function generateBuilds(hero: Hero, items: Item[], analytics: HeroAnalytics): Build {
-  const itemStatsById = new Map(analytics.item_stats.map((s) => [s.item_id, s]))
-  const highBadgeStatsById = new Map(analytics.high_badge_item_stats.map((s) => [s.item_id, s]))
-  const meanWinRate = heroMeanWinRate(analytics)
-  const maxMatches = maxItemMatches(analytics)
-  const maxHighMatches = maxHighBadgeItemMatches(analytics)
+  // T18: any analytics row for an item id outside the catalog is skipped
+  // everywhere (score, buy order) — the catalog (items.json, ONLY real,
+  // currently-shopable items) is the sole source of what's pickable.
+  const catalogIds = new Set(items.map((item) => item.id))
+  const catalogAnalytics: HeroAnalytics = {
+    ...analytics,
+    item_stats: analytics.item_stats.filter((s) => catalogIds.has(s.item_id)),
+    high_badge_item_stats: analytics.high_badge_item_stats.filter((s) => catalogIds.has(s.item_id)),
+  }
+  const itemStatsById = new Map(catalogAnalytics.item_stats.map((s) => [s.item_id, s]))
+  const highBadgeStatsById = new Map(catalogAnalytics.high_badge_item_stats.map((s) => [s.item_id, s]))
+  const meanWinRate = heroMeanWinRate(catalogAnalytics)
+  const maxMatches = maxItemMatches(catalogAnalytics)
+  const maxHighMatches = maxHighBadgeItemMatches(catalogAnalytics)
   const maxValuePerSoul = items.reduce((max, item) => Math.max(max, statValuePerSoul(item)), 0)
   const abilityOrder = buildAbilityOrder(hero.abilities, analytics.ability_order_stats, analytics.high_badge_ability_order_stats)
+  const chainGroups = buildItemChainGroups(items)
 
   const candidates: ScoredCandidate[] = (['weapon', 'spirit'] as const).map((archetype) => {
     const { build, totalScore } = buildForArchetype(
@@ -169,6 +189,7 @@ export function generateBuilds(hero: Hero, items: Item[], analytics: HeroAnalyti
       maxValuePerSoul,
       archetype,
       abilityOrder,
+      chainGroups,
     )
     return { archetype, totalScore, build }
   })

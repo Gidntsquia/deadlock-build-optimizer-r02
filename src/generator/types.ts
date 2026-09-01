@@ -35,6 +35,10 @@ export interface Item {
   id: number
   class_name: string
   name: string
+  // Catalog ids of the items this one upgrades from. Buying this item
+  // consumes each component (which becomes unpurchasable in-game) — see
+  // itemChains.ts / T18.
+  components: number[]
   cost: number
   item_tier: number
   item_slot_type: 'weapon' | 'vitality' | 'spirit'
