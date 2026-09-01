@@ -22,3 +22,15 @@
   - Acceptance: (1) e2e at 390×844: ability panel `scrollWidth <= clientWidth` (no horizontal overflow) with a full 15-step sequence; (2) all 15 steps present in the DOM; (3) jsdom or e2e check that row bars are laid out on the full-width content element (assert the CSS structure); (4) all suites green.
   - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
 
+
+- [ ] **T23 — synergy + affinity scoring, heavier usage/win-rate weighting, full re-tune (user request 2026-09-01T20:04Z: "agreement still far too low; factor in item usage and win rates more; consider character play styles and items that synergize with their abilities")**
+  - Data (committed by orchestrator 2026-09-01): each `analytics/hero-N.json` gains `item_pair_stats` — top 200 Phantom+ item PAIRS by matches, `{ items: [idA, idB], wins, matches }` — which items win TOGETHER on this hero. `items.json` gains `roster_usage_share: number|null` — the roster-average usage share for the item (this hero's own share ÷ roster share = how much the item over-indexes on this hero's kit; that ratio IS the empirical play-style/ability-synergy signal).
+  - Three additions to `src/generator/score.ts`, all behind `ScoreConstants` so the sweep can tune them:
+    1. **Heavier usage/win-rate**: extend the tuning grid's weight profiles with options that weight usage and win rate substantially higher than the current defaults — the user asked for this explicitly; let the sweep confirm how far to push.
+    2. **Hero-affinity multiplier**: `affinity = clamp(heroUsageShare / max(roster_usage_share, 0.01), 0.5, 3)`; `score *= 1 + affinityWeight * (affinity - 1)`; grid `affinityWeight ∈ {0, 0.15, 0.3}`.
+    3. **Pair synergy in build assembly**: when picking the next item, bonus = `pairSynergyWeight * mean(lift(picked, candidate))` where lift = pair win rate − hero average win rate, damped toward 0 by pair matches (shrink-to-mean K, reuse the existing damping helper), 0 for unseen pairs; grid `pairSynergyWeight ∈ {0, 0.1, 0.2}`. Deterministic (stable tie-breaks unchanged).
+  - Types/loaders: add the two fields where the Item/HeroAnalytics types live; loaders are generic passthrough.
+  - Re-run `npm run tune` with the expanded grid. Keep the search bounded (≤ ~1500 combos; coarse-then-fine two-stage is fine if runtime demands). Apply the argmax (same deterministic ties + sanity floor as T19).
+  - HARD LIMITS: never read/reference `public/data/heldout-ctc/`; gate:heldout green; determinism + T18 chain rules + T13 single-build all hold.
+  - Acceptance: (1) tuned Zergggy agreement ≥ the current 46%, both numbers in PROGRESS.md with the winning constants and grid size; (2) fixture tests for affinity multiplier and pair-synergy bonus (including the damped/unseen-pair zero case); (3) all suites + gates green.
+  - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.

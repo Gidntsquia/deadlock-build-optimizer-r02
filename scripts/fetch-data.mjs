@@ -202,6 +202,27 @@ function pruneItemStat(row) {
   return { item_id: firstDefined(row, ['item_id']), wins, matches }
 }
 
+// Item-pair co-occurrence (synergy signal, T23): top pairs by matches at
+// Phantom+ — which items WIN TOGETHER on this hero. ~10k raw pairs/hero pruned
+// to 200 keeps all high-sample pairs at ~450KB total for the roster.
+const ITEM_PAIR_TOP_N = 200
+function topItemPairs(rows) {
+  return rows
+    .map((row) => ({
+      items: firstDefined(row, ['item_ids', 'items']),
+      wins: firstDefined(row, ['wins', 'win_count']),
+      matches: firstDefined(row, ['matches', 'match_count', 'total_matches']),
+    }))
+    .filter((r) => Array.isArray(r.items) && r.items.length === 2)
+    .sort(
+      (a, b) =>
+        (b.matches ?? 0) - (a.matches ?? 0) ||
+        (b.wins ?? 0) - (a.wins ?? 0) ||
+        (String(a.items) < String(b.items) ? -1 : 1),
+    )
+    .slice(0, ITEM_PAIR_TOP_N)
+}
+
 // The real field is `abilities`: an array of ability IDs in AP-spend order
 // (verified live 2026-09-01; the old ability_order/sequence guesses were why the
 // whole roster shipped null sequences). Each row is one distinct order permutation
@@ -288,6 +309,7 @@ async function main() {
   writeFileSync(join(OUT_DIR, 'heroes.json'), JSON.stringify(heroes))
 
   console.log(`fetch-data: analytics for ${heroes.length} heroes`)
+  const usageShareAcc = new Map()
   for (const hero of heroes) {
     const rawItemStats = await fetchJson(`${API_BASE}/v1/analytics/item-stats?hero_id=${hero.id}`)
     const rawHighBadgeItemStats = await fetchJson(
@@ -297,16 +319,41 @@ async function main() {
     const rawHighBadgeAbilityOrderStats = await fetchJson(
       `${API_BASE}/v1/analytics/ability-order-stats?hero_id=${hero.id}&min_average_badge=${HIGH_BADGE_MIN}`,
     )
+    const rawPairStats = await fetchJson(
+      `${API_BASE}/v1/analytics/item-permutation-stats?hero_id=${hero.id}&comb_size=2&min_average_badge=${HIGH_BADGE_MIN}`,
+    )
+    const itemStats = rawItemStats.map(pruneItemStat)
+    // Roster-average usage baseline (hero-affinity signal, T23): this hero's
+    // usage share per item, accumulated across the roster after the loop.
+    const heroMaxMatches = Math.max(1, ...itemStats.map((s) => s.matches ?? 0))
+    for (const s of itemStats) {
+      if (s.item_id == null || s.matches == null) continue
+      const acc = usageShareAcc.get(s.item_id) ?? { sum: 0, heroes: 0 }
+      acc.sum += s.matches / heroMaxMatches
+      acc.heroes += 1
+      usageShareAcc.set(s.item_id, acc)
+    }
     const analytics = {
       hero_id: hero.id,
-      item_stats: rawItemStats.map(pruneItemStat),
+      item_stats: itemStats,
       high_badge_min: HIGH_BADGE_MIN,
       high_badge_item_stats: rawHighBadgeItemStats.map(pruneItemStat),
       ability_order_stats: topAbilityOrders(rawAbilityOrderStats),
       high_badge_ability_order_stats: topAbilityOrders(rawHighBadgeAbilityOrderStats),
+      // Phantom+ pair co-occurrence, top 200 by matches (synergy signal, T23).
+      item_pair_stats: topItemPairs(rawPairStats),
     }
     writeFileSync(join(OUT_DIR, 'analytics', `hero-${hero.id}.json`), JSON.stringify(analytics))
   }
+
+  // Enrich the catalog with the roster-average usage share per item (hero-affinity
+  // baseline: generator compares a hero's own usage share against this) and
+  // rewrite items.json now that the accumulator is complete.
+  for (const item of items) {
+    const acc = usageShareAcc.get(item.id)
+    item.roster_usage_share = acc && acc.heroes > 0 ? acc.sum / acc.heroes : null
+  }
+  writeFileSync(join(OUT_DIR, 'items.json'), JSON.stringify(items))
 
   console.log('fetch-data: infernus item-permutation-stats')
   const rawPermutations = await fetchJson(`${API_BASE}/v1/analytics/item-permutation-stats?hero_id=${INFERNUS_HERO_ID}`)

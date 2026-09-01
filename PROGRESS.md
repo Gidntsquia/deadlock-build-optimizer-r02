@@ -64,6 +64,10 @@
 - Verified: `npm run build` clean; `npx vitest run` 41 passed/2 skipped (was 39/2); `npm run gate:heldout` OK (5 files, zero held-out references); `npx playwright test` 5/5. `node_modules` was missing at fire start (fresh container) — ran `npm ci` first.
 - T13 archived to GOALS_ARCHIVE.md. Queue was T13 → T14 → T10 → T11 → T12; next up is T14 (stat_sections tooltip rendering) — data already committed, nothing blocking.
 
+## 2026-09-01T20:12Z — orchestrator: synergy/affinity data committed; T23 queued (user: "agreement still far too low")
+- User wants usage/win rates weighted heavier + play-style/ability-synergy factored in. New data (refetched + committed): `item_pair_stats` per hero (top 200 Phantom+ item pairs by matches — co-occurrence win rates, the empirical synergy signal) and `roster_usage_share` per item (hero's own share ÷ this = how much an item over-indexes on a hero's kit). public/data now 2.9MB.
+- T23 (after T21): three tunable signals — heavier usage/win-rate grid profiles, hero-affinity multiplier, pair-synergy bonus during assembly — then full `npm run tune` re-run with expanded grid, argmax applied. T22 was dropped as superseded.
+- Verified: `npm run build` clean · `npm test` 59 passed/2 skipped · `npm run gate:heldout` OK.
 ## 2026-09-01T19:55Z — orchestrator: brawl items out of catalog; T21 queued (ability panel scrollbar)
 - User: Unstable Concoction unbuyable in standard play; ability panel scrollbar disliked; navy row bars stop short when scrolled.
 - Root cause: 17 Brawl-mode items (sentinel item_tier 5 / cost 9999, shop art under `items/brawl/`) pass the raw `shopable` flag. isShopableItem now excludes tier-5/9999 — catalog 173→156. No generator change needed: T18's catalog-only rule makes builds drop them automatically. Snapshots refetched + committed.
