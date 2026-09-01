@@ -135,7 +135,14 @@ function extractAbilityText(item, kind) {
 // disabled/non-shopable entries (e.g. upgrade_stabilizing_tripod, disabled:true,
 // name = raw class_name) — user bug report 2026-09-01.
 function isShopableItem(item) {
-  return item.shopable === true && item.disabled !== true
+  if (item.shopable !== true || item.disabled === true) return false
+  // Brawl-mode items (23 of them) are flagged shopable but carry the sentinel
+  // tier 5 / flat 9999 cost and brawl/ shop art — not buyable in standard play
+  // (user bug report 2026-09-01: Unstable Concoction).
+  const tier = firstDefined(item, ['item_tier', 'tier'])
+  const cost = firstDefined(item, ['item_cost', 'cost', 'price'])
+  if (tier === 5 || cost === 9999) return false
+  return true
 }
 
 function pruneItem(item, idByClassName) {

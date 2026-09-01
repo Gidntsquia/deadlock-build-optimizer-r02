@@ -64,6 +64,10 @@
 - Verified: `npm run build` clean; `npx vitest run` 41 passed/2 skipped (was 39/2); `npm run gate:heldout` OK (5 files, zero held-out references); `npx playwright test` 5/5. `node_modules` was missing at fire start (fresh container) — ran `npm ci` first.
 - T13 archived to GOALS_ARCHIVE.md. Queue was T13 → T14 → T10 → T11 → T12; next up is T14 (stat_sections tooltip rendering) — data already committed, nothing blocking.
 
+## 2026-09-01T19:55Z — orchestrator: brawl items out of catalog; T21 queued (ability panel scrollbar)
+- User: Unstable Concoction unbuyable in standard play; ability panel scrollbar disliked; navy row bars stop short when scrolled.
+- Root cause: 17 Brawl-mode items (sentinel item_tier 5 / cost 9999, shop art under `items/brawl/`) pass the raw `shopable` flag. isShopableItem now excludes tier-5/9999 — catalog 173→156. No generator change needed: T18's catalog-only rule makes builds drop them automatically. Snapshots refetched + committed.
+- T21 queued (before T20): ability panel must fit all ~15 columns at 390px with no scrollbar; row bars must span full content width.
 ## 2026-09-01T19:30Z — orchestrator: experiment redesign — Zergggy becomes tuning set, ctc/Drifter new held-out; queue T19/T20
 - User: tune the algorithm toward Zergggy agreement, then test closeness to another top player's main. Sound design: Zergggy graduates to tuning set, a fresh player is the held-out test.
 - Held-out pick (logged): "ctc", NA leaderboard rank 2, account 1294549649 (resolved from possible_account_ids by match volume), main Drifter (hero 64, 60 of last 200 matches). Fetched their 30 most recent Drifter matches with purchases (avg 15.8 shop buys/match) → `public/data/heldout-ctc/matches.json` (committed).
