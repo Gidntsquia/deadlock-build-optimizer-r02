@@ -222,3 +222,9 @@
 ## 2026-09-01T20:51Z — ROADMAP.md truthfulness fix (small, no ticket needed)
 - Budget remained after T25 (per PACE:full); re-checked ROADMAP.md's known gaps before concluding there's nothing to do — same 4 as the 20:34Z assessment, still blocked/need product input, nothing changed.
 - Noticed ROADMAP.md still listed "PWA caching of item images for true offline visuals" as a gap even though T24 (2026-09-01, see git log) already shipped it — removed the stale line to keep the doc truthful. Doc-only change, no gates required (build/test/gate:heldout unaffected).
+
+## 2026-09-01T20:58Z — orchestrator: T26 queued (Infernus build quality)
+- User: "The Infernus build simply looks bad; adjust the numbers." Diagnosed locally with a throwaway harness over the real generator: build carries 1–23% usage luxury items (Siphon Bullets, Unstoppable, Juggernaut, Spirit Rend) on thin 52–54% WRs while missing Zergggy staples (Improved Spirit 98% usage, Extra Spirit 82%, Escalating Exposure 71%/54.0% WR, Healbane, Rapid Recharge, Extra Charge).
+- Also checked higher rank floors live: Ascendant+ has only 13.7k Infernus matches, Eternus-only zero — Phantom+ (badge ≥81, already in snapshots) stays the top-player signal; the lever is weighting, not new data.
+- Queued T26: usage-dominant weight profiles, usage-scaled WR confidence, chain-stage-by-usage, T25 fallback ordering fix, floor in grid; full re-tune, agreement must beat 48%.
+- Next cron fire 21:13Z picks it up (inside 25-min window, no eager fire).

@@ -14,4 +14,18 @@
 
 ## Open tickets
 
-(queue empty — next fire should check ROADMAP.md's known gaps per PACE:full)
+- [ ] **T26 — Infernus build quality: usage must outrank thin-sample win rate; chain stage by usage (user 2026-09-01T20:55Z: "The Infernus build simply looks bad; adjust the numbers to improve it")**
+  - Orchestrator diagnosis (measured from the committed snapshots — do not re-derive):
+    - Current Infernus build (48% agreement) picks Siphon Bullets (1% Infernus usage share), Unstoppable (5%), Juggernaut (12%), Spirit Rend (23%) — low-usage luxury items riding 52–54% win rates. Item-level WR only spans ~48–54% on Infernus and is inflated by selection bias (luxury items get bought in games already being won), while usage share spans 1–100%: usage is the informative signal, WR is nearly noise without volume behind it.
+    - Zergggy staples the build MISSES: Improved Spirit (30/30 of his matches, 98% Infernus usage), Extra Spirit (29/30, 82%), Healbane (30/30, 42%), Escalating Exposure (20/30, 71% usage, 54.0% WR — the single clearest snub), Rapid Recharge (20/30, 58%), Extra Charge (15/30, 47%).
+    - Spirit chain: the build shows Boundless Spirit (58% usage) as the chain's pick while Improved Spirit sits at 98% — T18's one-per-chain rule is right, but the STAGE shown should follow usage, not endpoint score alone.
+    - T25's starvation fallback re-admits Siphon Bullets on 5 heroes — the fallback should prefer the highest-usage below-floor candidates (stable tie ascending id), so a 1%-usage item is the last resort, not the first fallback.
+  - Changes (all behind `ScoreConstants`, the sweep decides the values):
+    1. Grid: add usage-dominant weight profiles (usage weight up to ~0.6, win-rate down to ~0.1).
+    2. Usage-scaled win-rate confidence: scale the win-rate deviation `(dampedWinRate − meanWinRate)` by `min(1, usageShare / usageConfidenceShare)`; grid `usageConfidenceShare ∈ {0 (off), 0.2, 0.3}` — an item bought in 5% of matches must not ride its WR past mass-usage staples.
+    3. Chain-stage selection: when a chain group wins a slot, display/pick the stage with the highest hero usage share (stable tie: ascending item id) instead of the highest-scoring endpoint. T18 one-per-chain and T13 single-build determinism hold.
+    4. Fallback ordering fix per the diagnosis above (highest usage first among below-floor).
+    5. Include `minUsageShare ∈ {0.01, 0.05, 0.1}` in the grid.
+  - Re-run `npm run tune` with the expanded grid (coarse-then-fine, ≤ ~1500 combos), apply the argmax with the usual deterministic ties + all-hero sanity floor.
+  - Acceptance: (1) Zergggy agreement > 48%, new number + winning constants in PROGRESS.md; (2) the new Infernus build listed item-by-item in PROGRESS.md with each item's usage%/WR — nothing below the tuned floor except explicit fallbacks; (3) fixture tests for usage-scaled confidence, chain-stage-by-usage, and the fallback ordering; (4) all suites + gates green.
+  - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
