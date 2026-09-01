@@ -4,7 +4,9 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { generateBuilds, pickBestBuild } from '../generator'
 import type { Build, Hero, HeroAnalytics, Item, ScoredCandidate } from '../generator'
+import { buildAbilityOrder } from '../generator/abilityOrder'
 import { HIGH_BADGE_MIN_SAMPLE, HIGH_BADGE_WEIGHT, blendHighBadgeStat, dampedWinRate, highBadgeBlendWeight, scoreItem } from '../generator/score'
+import type { Ability, AbilityOrderStat } from '../generator/types'
 
 const DATA_DIR = join(process.cwd(), 'public/data')
 const META_PATH = join(DATA_DIR, 'meta.json')
@@ -79,6 +81,34 @@ describe.skipIf(!hasSnapshots)('generator', () => {
 
   it('gate:heldout passes against the current src/generator/', () => {
     expect(() => execFileSync('node', ['scripts/gate-heldout.mjs'], { cwd: process.cwd() })).not.toThrow()
+  })
+
+  // T15: real per-hero ability order, sourced from the snapshot's
+  // ability_order_stats / high_badge_ability_order_stats (see abilityOrder.ts).
+  it('generates pairwise-different ability-order step sequences per hero', () => {
+    // GOALS.md's T15 ticket text names "Infernus, hero_id 15" — the snapshot
+    // itself says Infernus is hero_id 1 (hero_id 15 is Bebop); using the
+    // correct id here per the guardrail to make a documented judgment call
+    // when a ticket is ambiguous/wrong rather than block on it.
+    const names = ['Infernus', 'Seven', 'Vindicta']
+    const idSequences = names.map((name) => {
+      const hero = heroByName(name)
+      const analytics = analyticsByHero.get(hero.id)!
+      const build = generateBuilds(hero, items, analytics)
+      return build.ability_order.map((step) => step.ability_id).join(',')
+    })
+    expect(new Set(idSequences).size).toBe(idSequences.length)
+  })
+
+  it("Infernus's rendered ability order equals its top-row sequence from the chosen source", () => {
+    const hero = heroByName('Infernus')
+    const analytics = analyticsByHero.get(hero.id)!
+    const build = generateBuilds(hero, items, analytics)
+
+    const highTop = analytics.high_badge_ability_order_stats[0]
+    const expectedSequence = (highTop?.matches ?? 0) >= 100 ? highTop.sequence! : analytics.ability_order_stats[0].sequence!
+
+    expect(build.ability_order.map((step) => step.ability_id)).toEqual(expectedSequence)
   })
 })
 
@@ -188,5 +218,63 @@ describe('pickBestBuild', () => {
     const spirit = candidate('spirit', 5, [10, 20])
     expect(pickBestBuild([weapon, spirit])).toBe(spirit.build) // 'spirit' < 'weapon'
     expect(pickBestBuild([spirit, weapon])).toBe(spirit.build)
+  })
+})
+
+// T15: real per-hero ability order. Pure fixtures, not snapshot-dependent.
+describe('buildAbilityOrder', () => {
+  const abilities: Ability[] = [
+    { id: 1, name: 'Alpha', image: null },
+    { id: 2, name: 'Bravo', image: null },
+    { id: 3, name: 'Charlie', image: null },
+    { id: 4, name: 'Delta', image: null },
+  ]
+
+  function statRow(sequence: number[] | null, matches: number, wins = matches): AbilityOrderStat {
+    return { sequence, wins, matches }
+  }
+
+  it('derives unlock/upgrade kind from first-vs-later occurrence, in sequence order', () => {
+    const sequence = [1, 2, 1, 3, 4, 2]
+    const steps = buildAbilityOrder(abilities, [statRow(sequence, 500)], [])
+    expect(steps.map((s) => [s.ability_id, s.kind])).toEqual([
+      [1, 'unlock'],
+      [2, 'unlock'],
+      [1, 'upgrade'],
+      [3, 'unlock'],
+      [4, 'unlock'],
+      [2, 'upgrade'],
+    ])
+  })
+
+  it('falls back to round-robin when the chosen sequence contains an unknown ability id', () => {
+    const sequence = [1, 2, 3, 4, 999] // 999 isn't one of this hero's 4 abilities
+    const steps = buildAbilityOrder(abilities, [statRow(sequence, 500)], [])
+    expect(steps).toEqual(buildAbilityOrder(abilities, [], []))
+    expect(steps.length).toBe(12) // fallback: 4 unlocks + 2 round-robin upgrade rounds
+  })
+
+  it('falls back to round-robin when both stats tables are empty or all-null', () => {
+    expect(buildAbilityOrder(abilities, [], [])).toEqual(buildAbilityOrder(abilities, [statRow(null, 0)], [statRow(null, 0)]))
+  })
+
+  it('prefers the high-badge source only once its top row clears the matches floor', () => {
+    const overallSeq = [1, 1, 2, 2, 3, 3, 4, 4]
+    const thinHighBadgeSeq = [4, 4, 3, 3, 2, 2, 1, 1]
+    const thin = buildAbilityOrder(abilities, [statRow(overallSeq, 500)], [statRow(thinHighBadgeSeq, 99)])
+    expect(thin.map((s) => s.ability_id)).toEqual(overallSeq)
+
+    const thick = buildAbilityOrder(abilities, [statRow(overallSeq, 500)], [statRow(thinHighBadgeSeq, 100)])
+    expect(thick.map((s) => s.ability_id)).toEqual(thinHighBadgeSeq)
+  })
+
+  it('picks the highest-matches row, tie-broken by wins then ascending sequence', () => {
+    const rows = [
+      statRow([1, 2, 3, 4], 100, 50),
+      statRow([2, 1, 3, 4], 200, 60), // highest matches
+      statRow([3, 2, 1, 4], 200, 60), // same matches+wins, higher joined sequence
+    ]
+    const steps = buildAbilityOrder(abilities, rows, [])
+    expect(steps.map((s) => s.ability_id)).toEqual([2, 1, 3, 4])
   })
 })

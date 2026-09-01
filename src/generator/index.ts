@@ -69,6 +69,7 @@ function buildForArchetype(
   maxHighMatches: number,
   maxValuePerSoul: number,
   archetype: Archetype,
+  abilityOrder: Build['ability_order'],
 ): { build: Build; totalScore: number } {
   const scored = items
     .map((item) => {
@@ -135,7 +136,7 @@ function buildForArchetype(
     name: `${hero.name} Build`,
     archetype,
     items: buildItems,
-    ability_order: buildAbilityOrder(hero.abilities),
+    ability_order: abilityOrder,
   }
   return { build, totalScore }
 }
@@ -154,6 +155,7 @@ export function generateBuilds(hero: Hero, items: Item[], analytics: HeroAnalyti
   const maxMatches = maxItemMatches(analytics)
   const maxHighMatches = maxHighBadgeItemMatches(analytics)
   const maxValuePerSoul = items.reduce((max, item) => Math.max(max, statValuePerSoul(item)), 0)
+  const abilityOrder = buildAbilityOrder(hero.abilities, analytics.ability_order_stats, analytics.high_badge_ability_order_stats)
 
   const candidates: ScoredCandidate[] = (['weapon', 'spirit'] as const).map((archetype) => {
     const { build, totalScore } = buildForArchetype(
@@ -166,6 +168,7 @@ export function generateBuilds(hero: Hero, items: Item[], analytics: HeroAnalyti
       maxHighMatches,
       maxValuePerSoul,
       archetype,
+      abilityOrder,
     )
     return { archetype, totalScore, build }
   })

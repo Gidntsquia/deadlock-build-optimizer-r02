@@ -14,15 +14,6 @@
 
 ## Open tickets
 
-- [ ] **T15 — real per-hero ability order (user bug report 2026-09-01: "ability upgrade order is the same across all heroes")**
-  - Why: `buildAbilityOrder` ships the same round-robin fallback for the whole roster because every snapshot row had `sequence: null` — the upstream field is actually `abilities` (ability IDs in AP-spend order). The orchestrator has fixed the pipeline and recommitted snapshots: `ability_order_stats` and `high_badge_ability_order_stats` (Phantom+, badge ≥81) are now each ≤25 rows of `{ sequence: number[], wins, matches }`, pre-sorted by matches desc then wins desc, sequences typically ~15 IDs long.
-  - Goal: the generator builds each hero's order from its own data. Source pick: `high_badge_ability_order_stats` if its top row has matches ≥ 100, else `ability_order_stats`. Row pick: highest matches (tie: highest wins, then ascending joined sequence — keep it deterministic, data is pre-sorted but re-sort defensively). Map the sequence to steps: first occurrence of an ability ID = `unlock`, later occurrences = `upgrade`; render the FULL sequence (all ~15 AP spends), not just 12. Sequence IDs must all resolve to the hero's 4 abilities — any unknown ID or empty/missing stats → keep the existing round-robin fallback (don't delete it; it stays test-covered).
-  - HELD-OUT RULE: pick by matches/wins from analytics only — never consult Zergggy data.
-  - UI: AbilityOrderPanel keeps its T11 design; column count now follows the real sequence length (~15) — horizontal scroll inside the panel on 390px stays. Upgrade AP-cost badges still derive from upgrade index (1st=1, 2nd=2, 3rd=5).
-  - Files: `src/generator/abilityOrder.ts`, `src/generator/types.ts` (AbilityOrderStat.sequence: number[] | null; add high_badge_ability_order_stats), `src/generator/index.ts`, `src/components/AbilityOrderPanel.tsx` (or equivalent), `src/test/generator.test.ts`, `src/test/app.test.tsx`.
-  - Acceptance: (1) snapshot-backed test: ≥3 heroes (include Infernus, hero_id 15) produce pairwise-different step sequences; (2) fixture test: unlock/upgrade kinds derived from first-vs-later occurrence; unknown ID in a fixture sequence falls back to round-robin; (3) determinism test green; (4) Infernus's rendered order equals its top-row sequence from the chosen source; (5) all suites green.
-  - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
-
 - [ ] **T16 — remove the personal-insight block at the top of the app (user request 2026-09-01: "I don't care for the personal insight at the top")**
   - Goal: the top-of-page personal match-history insight section is gone entirely. If the only consumer of `src/personalization/` is that block, delete the module, its tests, its README section, and its CLAUDE.md repo-map line too. Per-build/per-item annotations elsewhere (if any) stay. `public/data/personal-matches.json` and the fetch pipeline stay untouched (orchestrator-owned; unused data is fine).
   - Files: `src/App.tsx`, the insight component, `src/personalization/` (likely delete), `src/test/` suites that reference it, README, CLAUDE.md repo map.

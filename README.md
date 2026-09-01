@@ -109,10 +109,13 @@ Checked against the held-out Zergggy agreement score (never tuned toward it): In
 Spirit builds score identically (35% / 51%) before and after this change — the blend didn't move
 the top-ranked items enough to change either build's item selection for this particular hero/snapshot.
 
-Ability level-up order unlocks the hero's 4 named abilities in listed order (steps 1–4), then
-upgrades them round-robin twice more (steps 5–12) — the snapshot's
-`ability_order_stats[].sequence` field is `null` for every hero, so there's no real per-hero order
-to prefer over this documented fallback.
+Ability level-up order (T15) is built per-hero from the snapshot's own AP-spend data:
+`high_badge_ability_order_stats` (Phantom+) is used when its highest-matches row clears a 100-match
+floor, else `ability_order_stats`; ties break by wins then ascending joined sequence. The winning
+row's ~15-long ability-id sequence is mapped step by step — first occurrence of an ability = unlock,
+later occurrences = upgrade. The old deterministic fallback (unlock 1–4, then upgrade round-robin
+×2, 12 steps total) still exists in `src/generator/abilityOrder.ts` and is used only when a hero has
+no usable sequence row or a chosen row references an ability id outside its own 4.
 
 ## Held-out validation (`src/validation/`)
 
@@ -249,8 +252,6 @@ documented fallback rather than fabricated data:
 - **`heroes.json` base stats** are structurally identical across all 38 heroes (a field-mapping gap
   in the fetch — `starting_stats`/`level_scaling` didn't carry real per-hero values from this API).
   Archetype weighting uses each item's own `item_slot_type` instead of hero scaling stats.
-- **`ability_order_stats[].sequence`** is `null` for every hero — the ability order always uses the
-  documented fallback (unlock 1–4, then upgrade round-robin ×2) rather than a real per-hero order.
 - **`active_description` / `passive_description`** are `null` for all 251 items — the build's
   activated-item cap uses a stat-line heuristic (nonzero `AbilityCooldown`, `is_active_item` since
   T14 is available as the real flag for future display use); the item detail card no longer renders

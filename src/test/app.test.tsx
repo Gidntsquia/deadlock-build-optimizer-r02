@@ -4,12 +4,16 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import App from '../App'
 import ItemDetailSheet, { isMeaningfulStatLine } from '../components/ItemDetailSheet'
-import type { Item } from '../generator'
+import type { Hero, HeroAnalytics, Item } from '../generator'
 
 const hasSnapshots = existsSync(join(process.cwd(), 'public/data/meta.json'))
 
 function readItems(): Item[] {
   return JSON.parse(readFileSync(join(process.cwd(), 'public/data/items.json'), 'utf8'))
+}
+
+function readDataJson<T>(...parts: string[]): T {
+  return JSON.parse(readFileSync(join(process.cwd(), 'public/data', ...parts), 'utf8'))
 }
 
 // T5 acceptance: boots the real <App/> against the committed snapshots.
@@ -35,37 +39,43 @@ describe.skipIf(!hasSnapshots)('App', () => {
     }
   })
 
-  it('Ability Point Order panel shows unlock/upgrade markers on a shared column timeline', async () => {
+  it("Ability Point Order panel reflects Infernus's real per-ability sequence from analytics (T15)", async () => {
     render(<App />)
     await screen.findAllByText(/% agreement/)
 
+    const heroes = readDataJson<Hero[]>('heroes.json')
+    const infernus = heroes.find((h) => h.name === 'Infernus')!
+    const analytics = readDataJson<HeroAnalytics>('analytics', `hero-${infernus.id}.json`)
+    const highTop = analytics.high_badge_ability_order_stats[0]
+    const expectedSequence = (highTop?.matches ?? 0) >= 100 ? highTop.sequence! : analytics.ability_order_stats[0].sequence!
+
     const rows = document.querySelectorAll('.ability-order-panel__row')
-    // Every hero has exactly 4 abilities (see abilityOrder.ts's fallback sequence).
+    // Every hero has exactly 4 abilities.
     expect(rows.length).toBe(4)
 
-    // The generator always unlocks all 4 abilities first (steps 1-4, one per
-    // row, in hero-listed order), so the first row's ability unlocks at
-    // column 1 — this is deterministic, not Infernus-specific.
-    const firstRow = rows[0]
-    const unlockMarker = firstRow.querySelector('.ability-order-panel__marker--unlock')
-    expect(unlockMarker).not.toBeNull()
-    expect(unlockMarker!.getAttribute('data-column')).toBe('1')
-    expect(unlockMarker!.textContent).toBe('')
-
-    // Then 2 upgrade rounds, round-robin: the first ability's 2 upgrades land
-    // at columns 5 and 9 (after all 4 abilities' unlocks, then all 4 first
-    // upgrades), with AP costs 1 then 2 by upgrade index.
-    const upgradeMarkers = firstRow.querySelectorAll('.ability-order-panel__marker--upgrade')
-    expect(upgradeMarkers.length).toBe(2)
-    expect(upgradeMarkers[0].getAttribute('data-column')).toBe('5')
-    expect(upgradeMarkers[0].textContent).toBe('◆1')
-    expect(upgradeMarkers[1].getAttribute('data-column')).toBe('9')
-    expect(upgradeMarkers[1].textContent).toBe('◆2')
-
-    // Markers on different rows only share a column when their spends are
-    // genuinely simultaneous — the 2nd row's unlock is column 2, not 1.
-    const secondRowUnlock = rows[1].querySelector('.ability-order-panel__marker--unlock')
-    expect(secondRowUnlock!.getAttribute('data-column')).toBe('2')
+    // Row order follows hero.abilities order; each row's markers must match
+    // that ability's columns/kinds in the resolved real sequence (first
+    // occurrence = unlock, later occurrences = upgrade, AP costs 1/2/5).
+    infernus.abilities.forEach((ability, rowIndex) => {
+      const expectedSteps = expectedSequence
+        .map((id, i) => ({ id, column: i + 1 }))
+        .filter((s) => s.id === ability.id)
+      const markers = rows[rowIndex].querySelectorAll('.ability-order-panel__marker')
+      expect(markers.length).toBe(expectedSteps.length)
+      const apCosts = [1, 2, 5]
+      expectedSteps.forEach((step, stepIndex) => {
+        const marker = markers[stepIndex]
+        expect(marker.getAttribute('data-column')).toBe(String(step.column))
+        if (stepIndex === 0) {
+          expect(marker.classList.contains('ability-order-panel__marker--unlock')).toBe(true)
+          expect(marker.textContent).toBe('')
+        } else {
+          expect(marker.classList.contains('ability-order-panel__marker--upgrade')).toBe(true)
+          const apCost = apCosts[stepIndex - 1] ?? apCosts[apCosts.length - 1]
+          expect(marker.textContent).toBe(`◆${apCost}`)
+        }
+      })
+    })
   })
 
   it('tapping an item opens its detail card with cost/tier/slot', async () => {

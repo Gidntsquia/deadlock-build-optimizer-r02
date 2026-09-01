@@ -52,6 +52,7 @@ describe.skipIf(!hasSnapshots)('data snapshots', () => {
       expect(analytics.hero_id).toBe(hero.id)
       expect(Array.isArray(analytics.item_stats)).toBe(true)
       expect(Array.isArray(analytics.ability_order_stats)).toBe(true)
+      expect(Array.isArray(analytics.high_badge_ability_order_stats)).toBe(true)
     }
   })
 

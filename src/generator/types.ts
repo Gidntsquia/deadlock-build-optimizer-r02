@@ -68,7 +68,9 @@ export interface ItemStat {
 }
 
 export interface AbilityOrderStat {
-  sequence: unknown
+  // Ability ids in AP-spend order, ~15 entries long. `null` for rows the
+  // upstream pipeline couldn't resolve (see T15) — callers must skip those.
+  sequence: number[] | null
   wins: number | null
   matches: number | null
 }
@@ -81,6 +83,10 @@ export interface HeroAnalytics {
   high_badge_item_stats: ItemStat[]
   high_badge_min: number
   ability_order_stats: AbilityOrderStat[]
+  // Same shape as ability_order_stats, pre-filtered upstream to average
+  // badge >= high_badge_min (Phantom+; see T15). Preferred source when its
+  // top row has enough matches.
+  high_badge_ability_order_stats: AbilityOrderStat[]
 }
 
 // Generator output.
