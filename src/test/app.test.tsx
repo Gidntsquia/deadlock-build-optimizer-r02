@@ -35,6 +35,39 @@ describe.skipIf(!hasSnapshots)('App', () => {
     }
   })
 
+  it('Ability Point Order panel shows unlock/upgrade markers on a shared column timeline', async () => {
+    render(<App />)
+    await screen.findAllByText(/% agreement/)
+
+    const rows = document.querySelectorAll('.ability-order-panel__row')
+    // Every hero has exactly 4 abilities (see abilityOrder.ts's fallback sequence).
+    expect(rows.length).toBe(4)
+
+    // The generator always unlocks all 4 abilities first (steps 1-4, one per
+    // row, in hero-listed order), so the first row's ability unlocks at
+    // column 1 — this is deterministic, not Infernus-specific.
+    const firstRow = rows[0]
+    const unlockMarker = firstRow.querySelector('.ability-order-panel__marker--unlock')
+    expect(unlockMarker).not.toBeNull()
+    expect(unlockMarker!.getAttribute('data-column')).toBe('1')
+    expect(unlockMarker!.textContent).toBe('')
+
+    // Then 2 upgrade rounds, round-robin: the first ability's 2 upgrades land
+    // at columns 5 and 9 (after all 4 abilities' unlocks, then all 4 first
+    // upgrades), with AP costs 1 then 2 by upgrade index.
+    const upgradeMarkers = firstRow.querySelectorAll('.ability-order-panel__marker--upgrade')
+    expect(upgradeMarkers.length).toBe(2)
+    expect(upgradeMarkers[0].getAttribute('data-column')).toBe('5')
+    expect(upgradeMarkers[0].textContent).toBe('◆1')
+    expect(upgradeMarkers[1].getAttribute('data-column')).toBe('9')
+    expect(upgradeMarkers[1].textContent).toBe('◆2')
+
+    // Markers on different rows only share a column when their spends are
+    // genuinely simultaneous — the 2nd row's unlock is column 2, not 1.
+    const secondRowUnlock = rows[1].querySelector('.ability-order-panel__marker--unlock')
+    expect(secondRowUnlock!.getAttribute('data-column')).toBe('2')
+  })
+
   it('tapping an item opens its detail card with cost/tier/slot', async () => {
     render(<App />)
 
@@ -70,7 +103,7 @@ describe.skipIf(!hasSnapshots)('App', () => {
       expect(buildCards.length).toBe(1)
       for (const card of Array.from(buildCards)) {
         expect(card.querySelectorAll('.item-row').length).toBeGreaterThanOrEqual(12)
-        expect(card.querySelectorAll('.ability-order__step').length).toBeGreaterThan(0)
+        expect(card.querySelectorAll('.ability-order-panel__marker').length).toBeGreaterThan(0)
         // Non-Infernus heroes render without a validation report.
         expect(card.querySelectorAll('.badge').length).toBe(0)
         expect(card.querySelector('.build-card__agreement')).toBeNull()

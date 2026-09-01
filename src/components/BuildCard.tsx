@@ -1,10 +1,12 @@
-import type { Build, BuildPhase, Item } from '../generator'
+import type { Ability, Build, BuildPhase, Item } from '../generator'
 import type { ValidationReport } from '../validation'
+import AbilityOrderPanel from './AbilityOrderPanel'
 import ItemRow from './ItemRow'
 
 interface BuildCardProps {
   build: Build
   itemsById: Map<number, Item>
+  abilities: Ability[]
   // null when this hero has no validation report (only Infernus does).
   validation: ValidationReport | null
   onSelectItem: (itemId: number) => void
@@ -23,7 +25,7 @@ const DISPLAY_SECTIONS: { key: string; label: string; phases: BuildPhase[] }[] =
 ]
 const ARCHETYPE_LABELS: Record<Build['archetype'], string> = { weapon: 'Weapon build', spirit: 'Spirit build' }
 
-export default function BuildCard({ build, itemsById, validation, onSelectItem }: BuildCardProps) {
+export default function BuildCard({ build, itemsById, abilities, validation, onSelectItem }: BuildCardProps) {
   const coreByItemId = new Map(validation?.items.map((flag) => [flag.item_id, flag.core]) ?? [])
 
   return (
@@ -61,16 +63,7 @@ export default function BuildCard({ build, itemsById, validation, onSelectItem }
         )
       })}
 
-      <div className="build-card__abilities">
-        <h3>Ability level-up order</h3>
-        <ol className="ability-order">
-          {build.ability_order.map((step) => (
-            <li key={step.step} className={`ability-order__step ability-order__step--${step.kind}`}>
-              {step.ability_name}
-            </li>
-          ))}
-        </ol>
-      </div>
+      <AbilityOrderPanel abilities={abilities} abilityOrder={build.ability_order} />
     </section>
   )
 }

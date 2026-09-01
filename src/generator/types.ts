@@ -49,6 +49,7 @@ export interface Item {
 export interface Ability {
   id: number | string
   name: string
+  image: string | null
 }
 
 export interface Hero {

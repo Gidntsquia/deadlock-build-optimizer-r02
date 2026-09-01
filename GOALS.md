@@ -14,17 +14,6 @@
 
 ## Open tickets
 
-- [ ] **T11 — "Ability Point Order" panel styled like in-game (user request 2026-09-01, from a 2nd reference screenshot)**
-  - Goal: replace the current ability-order steps display with the game's timeline panel. Reference spec (authoritative — fires can't see the image; colors/type from DESIGN.md):
-    - Navy panel (`--panel-navy`), rounded corners, heading "Ability Point Order" (display face, `--text-light`), sitting below the phase panels.
-    - One row per ability (4), in the hero's ability order. Row left edge: the ability's icon (~40px square tile; `heroes.json` abilities now carry an `image` URL — orchestrator refetched 2026-09-01; broken/missing image degrades to the ability's initial letter on a `--badge-khaki` tile).
-    - Each row is a full-width darker bar (`--row-navy`). The generated ability sequence (unlocks + upgrades interleaved) maps to N sequential columns shared across ALL rows: spend #k renders a marker in its ability's row at column k — so markers never vertically align unless simultaneous, exactly like the game.
-    - Markers: **unlock** = violet diamond (`--diamond-violet`, a rotated-square badge with a small diamond glyph, no number); **upgrade step** = khaki pill (`--badge-khaki`, `--ink` text) showing "◆" + the upgrade step's AP cost — 1 for the 1st upgrade, 2 for the 2nd, 5 for the 3rd (in-game AP costs; our generator currently emits 2 upgrades per ability, so ◆5 may not appear — derive from upgrade index, don't hardcode the set).
-    - Non-interactive. Badge text contrast ≥4.5:1. On 390px the panel's content may scroll horizontally INSIDE the panel (`overflow-x: auto`) if columns overflow; the page never scrolls horizontally.
-  - Files: new `src/components/AbilityOrderPanel.tsx`, `src/components/BuildCard.tsx` (swap in the panel), `src/styles.css`, `src/test/app.test.tsx`, `e2e/mobile.spec.ts` (assert panel presence + no page overflow).
-  - Acceptance: (1) panel renders per spec for Infernus and non-Infernus heroes; (2) unlock vs upgrade markers visually distinct with correct AP numbers by upgrade index; (3) shared-column layout verified in a jsdom test (marker for spend k carries a column attribute/style derivable in the test); (4) all suites green.
-  - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
-
 - [ ] **T12 — app-wide design cohesion pass per DESIGN.md (user request 2026-09-01: "make the UI beautiful")**
   - Goal: the ENTIRE app reads as one in-game artifact — not two game-styled panels inside a web dashboard. Apply DESIGN.md everywhere T10/T11 didn't touch: app background `--bg-abyss`; build header becomes the teal title bar (hero name + build name in display face, agreement chip riding it); HeroPicker, PersonalizationBanner, and ItemDetailSheet restyled with DESIGN.md tokens (detail sheet = parchment sheet, slide-up kept as the app's one orchestrated motion moment). No white surfaces anywhere.
   - Typography: add `@fontsource/baloo-2` + `@fontsource/nunito-sans` (npm devDeps, bundled — runtime stays offline; log the additions in PROGRESS.md per the standing rule), wire the roles/weights and fallback stacks exactly as DESIGN.md specifies.

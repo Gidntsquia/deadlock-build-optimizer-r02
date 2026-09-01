@@ -1,5 +1,15 @@
 # PROGRESS — newest first, ≤25 lines per entry; past ~1,500 lines rotate all but newest ~10 entries verbatim to PROGRESS_ARCHIVE.md
 
+## 2026-09-01T18:39Z — T11 done: "Ability Point Order" panel styled like in-game
+- New `AbilityOrderPanel` (navy panel, one row/ability with a 40px icon + khaki-fallback-letter tile) replaces the old plain step list. `Ability` type gained `image: string | null` (real URL, already committed).
+- Shared-column layout: `build.ability_order` (unlock steps 1-4, then 2 upgrade rounds) maps onto N identical CSS-grid columns across every row via `gridColumn: step.step` — markers only align vertically when spends are genuinely simultaneous, exactly like the game.
+- Unlock = violet rotated-square diamond (CSS `::before`, no number). Upgrade = khaki pill "◆" + AP cost looked up by upgrade-index-within-that-ability (`[1,2,5]`, not hardcoded to "2 exist" even though that's all the generator emits today).
+- Panel content scrolls horizontally INSIDE itself (`overflow-x:auto`) if columns don't fit 390px; verified the page itself never scrolls (existing e2e no-overflow check still passes with the panel present).
+- New jsdom test asserts the shared-column behavior directly (row 1's unlock at column 1, its 2 upgrades at columns 5/9 reading ◆1/◆2; row 2's unlock at column 2, not 1) — satisfies the ticket's "verified in a jsdom test" acceptance criterion without needing real grid layout math.
+- Manual real-browser screenshot (temp spec, deleted, not committed) confirmed the diagonal-stepping marker columns and khaki fallback tiles render correctly, no overflow.
+- Verified: `npm run build` clean; `npx vitest run` 44 passed/2 skipped (was 43/2, +1 new); `npm run gate:heldout` OK (5 files, zero held-out references); `npx playwright test` 5/5.
+- T11 archived to GOALS_ARCHIVE.md. Queue was T13 → T14 → T10 → T11 → T12, first four now done this run; next up is T12 (app-wide design cohesion pass, incl. vendoring @fontsource fonts).
+
 ## 2026-09-01T18:34Z — T10 done: build display restyled to match in-game build browser
 - New DESIGN.md `:root` token block in styles.css (parchment/abyss/navy palette, slot colors, khaki/violet accents) drives everything; `body` now reads it instead of hardcoded colors.
 - `BuildCard` collapses the generator's internal early/mid/late split into 2 display panels ("Early Game" / "Mid to Late Game" — DESIGN.md's own layout concept, more authoritative than the ticket's "your call"); "Testing"/optional 3rd panel omitted, no leftover-item data exists to show there (never fabricate data).

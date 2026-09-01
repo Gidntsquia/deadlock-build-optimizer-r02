@@ -110,7 +110,13 @@ function App() {
 
           {buildState === 'ready' && build && itemsById.size > 0 && (
             <div className="build-list">
-              <BuildCard build={build} itemsById={itemsById} validation={validation} onSelectItem={setSelectedItemId} />
+              <BuildCard
+                build={build}
+                itemsById={itemsById}
+                abilities={selectedHero?.abilities ?? []}
+                validation={validation}
+                onSelectItem={setSelectedItemId}
+              />
             </div>
           )}
         </>

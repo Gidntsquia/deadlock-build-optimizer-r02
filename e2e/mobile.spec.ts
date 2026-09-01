@@ -7,6 +7,8 @@ test.describe('mobile viewport (390x844)', () => {
   test('Infernus default screen has no horizontal overflow and shows exactly 1 build', async ({ page }) => {
     await page.goto('/')
     await expect(page.locator('.build-card')).toHaveCount(1, { timeout: 15_000 })
+    await expect(page.locator('.ability-order-panel')).toHaveCount(1)
+    await expect(page.locator('.ability-order-panel__row')).toHaveCount(4)
 
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

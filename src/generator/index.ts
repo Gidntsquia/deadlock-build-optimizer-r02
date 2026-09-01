@@ -4,6 +4,8 @@ import { isActiveItem, statValuePerSoul } from './statUtils'
 import type { Archetype, Build, BuildItemEntry, BuildPhase, Hero, HeroAnalytics, Item, ItemStat } from './types'
 
 export type {
+  Ability,
+  AbilityLevelStep,
   Archetype,
   Build,
   BuildItemEntry,
