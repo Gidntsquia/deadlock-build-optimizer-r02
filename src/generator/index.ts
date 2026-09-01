@@ -3,7 +3,18 @@ import { heroMeanWinRate, maxHighBadgeItemMatches, maxItemMatches, scoreItem } f
 import { isActiveItem, statValuePerSoul } from './statUtils'
 import type { Archetype, Build, BuildItemEntry, BuildPhase, Hero, HeroAnalytics, Item, ItemStat } from './types'
 
-export type { Archetype, Build, BuildItemEntry, BuildPhase, Hero, HeroAnalytics, Item, ItemStat } from './types'
+export type {
+  Archetype,
+  Build,
+  BuildItemEntry,
+  BuildPhase,
+  Hero,
+  HeroAnalytics,
+  Item,
+  ItemStat,
+  StatSection,
+  StatSectionStat,
+} from './types'
 
 // Tier -> shopping phase. Tiers map to fixed soul costs in this snapshot
 // (1: 800, 2: 1600, 3: 3200, 4: 6400, 5: 9999), so gating by tier is the same

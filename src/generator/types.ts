@@ -9,6 +9,28 @@ export interface StatLine {
   value: unknown
 }
 
+// A single displayed stat row within a StatSection, matching the game's own
+// tooltip definition (see fetch-data.mjs's extractStatSections / T14).
+// `value: null` means the stat has no real value in this snapshot and must
+// not be rendered. `prefix: '{s:sign}'` is a template token, not literal text
+// — see ItemDetailSheet's formatSectionStatValue for how it's rendered.
+export interface StatSectionStat {
+  key: string
+  label: string
+  value: string | number | null
+  prefix: string | null
+  postfix: string | null
+  elevated: boolean
+}
+
+// One tooltip block as the game itself groups it (innate stats have no type
+// heading; active/passive get one). Stats are pre-ordered elevated-first.
+export interface StatSection {
+  type: 'innate' | 'active' | 'passive' | null
+  description: string | null
+  stats: StatSectionStat[]
+}
+
 export interface Item {
   id: number
   class_name: string
@@ -18,6 +40,8 @@ export interface Item {
   item_slot_type: 'weapon' | 'vitality' | 'spirit'
   image: string | null
   stat_lines: StatLine[]
+  stat_sections: StatSection[]
+  is_active_item: boolean
   active_description: string | null
   passive_description: string | null
 }

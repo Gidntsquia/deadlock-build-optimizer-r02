@@ -34,7 +34,7 @@ talks to at runtime).
 
 | File | Contents |
 | --- | --- |
-| `public/data/items.json` | All shopable upgrade items: id, name, cost, tier, slot type, image URL, stat lines, active/passive tooltip text. ≥200 items. |
+| `public/data/items.json` | All shopable upgrade items: id, name, cost, tier, slot type, image URL, stat lines (scoring only), `stat_sections` (real in-game tooltip display data, T14), `is_active_item`. ≥200 items. |
 | `public/data/heroes.json` | Every **active** hero (disabled/in-development heroes excluded): id, name, base stats, stat growth, and the hero's 4 real ability ids + names. |
 | `public/data/analytics/hero-<id>.json` | Per-hero item win/usage stats and ability-order stats, for every active hero. |
 | `public/data/analytics/infernus-permutations.json` | Item-permutation stats for Infernus only (a fetch-budget decision — every other hero's analytics come from the per-hero file above). |
@@ -157,7 +157,8 @@ Mobile-first at 390×844: a hero `<select>` (Infernus default), the single recom
 a card — winning archetype shown as a subtitle (e.g. "Spirit build") — with its buy list grouped
 early/mid/late (item image, name, cost, running soul total, core/not-core badge when a validation
 report exists), an ability level-up order list, and the personalization banner. Tapping
-any item opens a bottom-sheet detail card (image, cost, tier, slot type, stat lines). No horizontal
+any item opens a bottom-sheet detail card (image, cost, tier, slot type, and the item's real in-game
+tooltip sections — T14, see below). No horizontal
 scroll at 390px; every tappable element (hero select, item rows, the detail sheet's close button)
 is ≥40px in its constrained dimension. Desktop is just the same layout centered in a ~480px column.
 
@@ -165,6 +166,24 @@ Runtime data loads via `fetch('/data/**')` against the static snapshot files (`s
 for items/heroes/analytics/personal matches; `src/validation/loadMatches.ts` for the held-out fetch,
 kept inside `src/validation/` for the same isolation reason as above) — no other runtime network
 calls except the item/hero image URLs the snapshots themselves store.
+
+### Item detail tooltip (`stat_sections`, T14)
+
+`items.json`'s `stat_lines` is the item's full engine property bag (scoring input only, most keys
+never shown in-game). The real in-game tooltip is defined by a separate, pre-committed
+`stat_sections` field per item — exactly which properties the game itself displays, grouped into
+sections (`innate` | `active` | `passive` | `null`), each with an optional plain-text description and
+an ordered (elevated-first) list of `{ key, label, value, prefix, postfix, elevated }` rows.
+`ItemDetailSheet` renders `stat_sections`, never `stat_lines` — innate sections get no heading (the
+game's top block); active/passive sections get an "Active"/"Passive" heading. A row is hidden when
+its `value` is `null` (reuses T8's `isMeaningfulStatLine`, which already treats `null` as
+not-meaningful) or when it's a numeric zero. `prefix: '{s:sign}'` is a template token meaning "show a
+leading `+` for a positive value" (a negative value already carries its own `-`); literal `+`/`-`
+prefixes render as-is. `elevated: true` rows (the game's emphasized big numbers) render bold/larger
+via `.item-detail-sheet__stat--elevated`. JUDGMENT CALL: ~11% of stats (125/1093 in this snapshot)
+have their unit already baked into `value` (e.g. `value: "10m"`, `postfix: "m"` — an upstream
+extraction quirk, not something T14 fixes at the source) — `formatSectionStatValue` skips appending
+the postfix when the value string already ends with it, to avoid rendering "10mm".
 
 ## Known data gaps and judgment calls
 
@@ -177,14 +196,16 @@ documented fallback rather than fabricated data:
   Archetype weighting uses each item's own `item_slot_type` instead of hero scaling stats.
 - **`ability_order_stats[].sequence`** is `null` for every hero — the ability order always uses the
   documented fallback (unlock 1–4, then upgrade round-robin ×2) rather than a real per-hero order.
-- **`active_description` / `passive_description`** are `null` for all 251 items — the active/passive
-  split for the build's activated-item cap uses a stat-line heuristic (nonzero `AbilityCooldown`)
-  instead, and the item detail card shows raw `stat_lines` rather than descriptive ability text
-  (there is none in this snapshot to show).
+- **`active_description` / `passive_description`** are `null` for all 251 items — the build's
+  activated-item cap uses a stat-line heuristic (nonzero `AbilityCooldown`, `is_active_item` since
+  T14 is available as the real flag for future display use); the item detail card no longer renders
+  these two always-null fields at all — `stat_sections`' own per-section descriptions (T14) are the
+  real ability text and are populated for active/passive sections that have one.
 - Some `stat_lines[].value` entries are display-metadata objects (`{label, prefix, postfix, ...}`)
   instead of numeric strings, rather than every value being numeric as the rest of the schema
   implies. The generator treats a non-numeric value as 0 (unaffected, since it already coerced with
-  `Number(...)`); the detail card falls back to the object's `label`, or "—".
+  `Number(...)`); `stat_lines` is scoring-only now (T14 moved the detail card to `stat_sections`,
+  whose values are always a plain string, number, or `null`, never this display-metadata shape).
 - The hand-built Vite/React/TS scaffold (T1) was written directly instead of via `npm create vite`,
   which needs an interactive prompt this sandbox can't satisfy on a non-empty directory; `vitest`
   was pinned to `^3.x` (not the ticket's implicit `^2.x`) because `vitest@2` on `vite@6` pulled a
@@ -213,17 +234,19 @@ export in an in-game-importable format.
 - [x] With snapshots present and the external image host blocked (network-disabled proxy for the
       only external runtime host), `npm run build` succeeds and the served app renders with zero
       console/page errors (`e2e/mobile.spec.ts`'s "offline resilience" test, T6).
-- [x] App opens on Infernus with ≥2 named builds; each has an ordered ≥12-item buy list grouped
-      early/mid/late, per-item cost, running soul total, and each item's real shop image
-      (`app.test.tsx`, `generator.test.ts`).
-- [x] Any 3 other heroes generate and render builds (buy list + ability order) without errors
+- [x] App opens on Infernus with its single recommended named build (T13; the generator still scores
+      two internal weapon/spirit candidates and exports the higher-scoring one); it has an ordered
+      ≥12-item buy list grouped early/mid/late, per-item cost, running soul total, and each item's
+      real shop image (`app.test.tsx`, `generator.test.ts`).
+- [x] Any 3 other heroes generate and render a build (buy list + ability order) without errors
       (`app.test.tsx`, and spot-checked for 4 heroes in `generator.test.ts`).
-- [x] Each build shows an ability level-up sequence using the hero's 4 real ability names.
-- [x] Tapping any build item opens a detail card: image, cost, tier, slot type, and stat data —
-      `active_description`/`passive_description` are `null` for every item in this snapshot (see
-      Known data gaps above), so `stat_lines` is what's shown in their place; there is no
-      descriptive ability text in the data to display.
-- [x] Every item in Infernus's builds carries a core/not-core badge and each Infernus build shows
+- [x] The build shows an ability level-up sequence using the hero's 4 real ability names.
+- [x] Tapping any build item opens a detail card: image, cost, tier, slot type, and its real in-game
+      tooltip stats (`stat_sections`, T14) — `active_description`/`passive_description` are `null`
+      for every item in this snapshot (see
+      Known data gaps above), so `stat_sections`' own per-section descriptions are what's shown in
+      their place where present; there is no separate descriptive ability text in the data beyond that.
+- [x] Every item in Infernus's build carries a core/not-core badge and the Infernus build shows
       an agreement % — scoped to Infernus because Zergggy's held-out sample is Infernus-only by
       design (see Held-out validation above); other heroes render without a validation report,
       also by design.

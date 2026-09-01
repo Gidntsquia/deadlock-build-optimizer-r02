@@ -100,6 +100,8 @@ describe('scoreItem high-elo blend', () => {
     item_slot_type: 'weapon',
     image: null,
     stat_lines: [],
+    stat_sections: [],
+    is_active_item: false,
     active_description: null,
     passive_description: null,
   }

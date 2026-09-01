@@ -102,44 +102,66 @@ describe('isMeaningfulStatLine', () => {
   })
 })
 
-// T8 acceptance: real snapshot data, not hardcoded assumptions.
+// T14 acceptance: ItemDetailSheet renders stat_sections (the game's own
+// tooltip definition), not the raw stat_lines property bag. Real snapshot
+// data, not hardcoded assumptions about which items exist beyond the two
+// named in the ticket.
 describe.skipIf(!hasSnapshots)('ItemDetailSheet (real snapshot)', () => {
-  it('shows only nonzero stat lines for a real item mixing zero and nonzero values, keeps Cost/Tier/Slot', () => {
+  it('Extended Magazine shows exactly its two named stats, elevated Max Ammo emphasized, no engine keys', () => {
     const items = readItems()
-    const item = items.find(
-      (candidate) =>
-        candidate.stat_lines.some((line) => !isMeaningfulStatLine(line.value)) &&
-        candidate.stat_lines.some((line) => isMeaningfulStatLine(line.value))
+    const item = items.find((candidate) => candidate.name === 'Extended Magazine')
+    expect(item).toBeDefined()
+
+    render(<ItemDetailSheet item={item!} onClose={() => {}} />)
+
+    const statList = document.querySelector('.item-detail-sheet__stats') as HTMLElement
+    expect(statList).not.toBeNull()
+    const rows = Array.from(statList.querySelectorAll('li')).map((li) => li.textContent)
+    expect(rows).toEqual(expect.arrayContaining(['Max Ammo+30%', 'Weapon Damage+8%']))
+    expect(rows.length).toBe(2)
+
+    const elevatedRow = statList.querySelector('.item-detail-sheet__stat--elevated')
+    expect(elevatedRow?.textContent).toBe('Max Ammo+30%')
+
+    // Ghost engine keys (the item's full stat_lines bag) must never render.
+    expect(screen.queryByText('AbilityUnitTargetLimit')).not.toBeInTheDocument()
+    expect(screen.queryByText('ChannelMoveSpeed')).not.toBeInTheDocument()
+  })
+
+  it('an active item shows its Active section with description + stats', () => {
+    const items = readItems()
+    const item = items.find((candidate) => candidate.stat_sections.some((section) => section.type === 'active'))
+    expect(item).toBeDefined()
+
+    render(<ItemDetailSheet item={item!} onClose={() => {}} />)
+
+    expect(screen.getByText('Active')).toBeInTheDocument()
+    const activeSection = item!.stat_sections.find((section) => section.type === 'active')!
+    if (activeSection.description) {
+      expect(screen.getByText(activeSection.description)).toBeInTheDocument()
+    }
+  })
+
+  it('hides stats whose value is null and never shows keys outside the item\'s own sections', () => {
+    const items = readItems()
+    const item = items.find((candidate) =>
+      candidate.stat_sections.some((section) => section.stats.some((stat) => stat.value === null)),
     )
     expect(item).toBeDefined()
 
     render(<ItemDetailSheet item={item!} onClose={() => {}} />)
 
-    expect(screen.getByText('Cost')).toBeInTheDocument()
-    expect(screen.getByText('Tier')).toBeInTheDocument()
-    expect(screen.getByText('Slot')).toBeInTheDocument()
-    expect(screen.getByText('Stats')).toBeInTheDocument()
-
-    const hiddenKeys = item!.stat_lines.filter((line) => !isMeaningfulStatLine(line.value)).map((line) => line.key)
-    const shownKeys = item!.stat_lines.filter((line) => isMeaningfulStatLine(line.value)).map((line) => line.key)
-    const statList = document.querySelector('.item-detail-sheet__stats')!
-    for (const key of shownKeys) {
-      expect(within(statList as HTMLElement).getByText(key)).toBeInTheDocument()
-    }
-    for (const key of hiddenKeys) {
-      if (shownKeys.includes(key)) continue
-      expect(within(statList as HTMLElement).queryByText(key)).not.toBeInTheDocument()
-    }
+    const nullStat = item!.stat_sections.flatMap((section) => section.stats).find((stat) => stat.value === null)!
+    expect(screen.queryByText(nullStat.label)).not.toBeInTheDocument()
   })
 
-  it('hides the Stats section entirely when an item has no meaningful stat lines', () => {
+  it('shows no stats block at all for an item with empty stat_sections', () => {
     const items = readItems()
-    const item = items.find((candidate) => candidate.stat_lines.every((line) => !isMeaningfulStatLine(line.value)))
+    const item = items.find((candidate) => candidate.stat_sections.length === 0)
     // Only assert the behavior if the real snapshot actually has such an item.
     if (!item) return
 
     render(<ItemDetailSheet item={item} onClose={() => {}} />)
-    expect(screen.queryByText('Stats')).not.toBeInTheDocument()
-    expect(document.querySelector('.item-detail-sheet__stats')).toBeNull()
+    expect(document.querySelector('.item-detail-sheet__stats-section')).toBeNull()
   })
 })

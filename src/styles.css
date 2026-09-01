@@ -314,6 +314,12 @@ h3 {
   gap: 8px;
 }
 
+.item-detail-sheet__stat--elevated {
+  font-weight: 700;
+  font-size: 1.05em;
+  color: #f0f0f6;
+}
+
 @media (min-width: 481px) {
   body {
     background: #0b0b0e;
