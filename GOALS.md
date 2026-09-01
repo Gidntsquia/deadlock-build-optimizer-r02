@@ -14,15 +14,6 @@
 
 ## Open tickets
 
-- [ ] **T19 — tune generator constants toward Zergggy agreement (user request 2026-09-01: "adjust the algorithm numbers until we have more agreement with the Zergggy build")**
-  - Zergggy is now the TUNING set (see header rule). Data: `public/data/zergggy/matches.json` via the existing `src/validation/` scoring.
-  - Goal: a deterministic offline sweep harness — `scripts/tune-generator.mjs` (or `src/validation/tune.ts` + npm script `tune`) — that (1) enumerates the generator's actual scoring constants (win-rate vs usage weights, damping K, high-badge blend cap/ramp, phase thresholds — read `src/generator/score.ts` and list what exists, don't invent), (2) grid-searches a bounded space (≤ ~500 combos), (3) for each combo generates the Infernus build and computes Zergggy agreement %, (4) picks argmax with deterministic ties (fewest changes from current values, then lexicographic parameter order).
-  - Apply the winning constants to `src/generator/` as plain numbers (a named-constants block is fine). The harness may import from `src/validation/`; `src/generator/` still must not (gate:heldout stays green).
-  - HARD LIMIT: the harness and this ticket must NEVER read or reference `public/data/heldout-ctc/` — that is the held-out set.
-  - Sanity floor: after applying the winner, every hero still exports a valid build (≥12 items, 4 abilities), determinism green, T18's chain rules hold. If the argmax breaks sanity, take the best combo that passes it.
-  - Acceptance: (1) PROGRESS.md records baseline agreement, tuned agreement (must be ≥ baseline), the grid searched, and the winning constants; (2) `npm run tune` (or documented command) reruns reproducibly; (3) all suites + gates green.
-  - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
-
 - [ ] **T20 — held-out test: agreement with ctc's Drifter builds (user request 2026-09-01; run AFTER T19 lands)**
   - Data (committed by orchestrator): `public/data/heldout-ctc/matches.json` — player "ctc" (NA leaderboard rank 2, account 1294549649), their 30 most recent Drifter (hero 64) matches with shop purchases; same shape as zergggy/matches.json.
   - Goal: extend `src/validation/` with a ctc core-set + agreement scoring (same ≥30% core-set rule), compute agreement of our exported Drifter build, display the agreement chip on Drifter exactly like Infernus's Zergggy chip (label it with the player name), and record the number in PROGRESS.md as a FINDING.

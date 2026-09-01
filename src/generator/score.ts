@@ -1,24 +1,53 @@
 import type { Archetype, HeroAnalytics, Item, ItemStat } from './types'
 import { statValuePerSoul } from './statUtils'
 
-// Confidence-damping pseudo-match count: an item's raw win rate is shrunk
-// toward the hero's mean win rate by treating it as if it had CONFIDENCE_K
-// extra matches played at that mean. Low-sample items (a handful of buys)
-// end up close to the hero mean; high-sample items keep their real rate.
-const CONFIDENCE_K = 50
+// All tunable scoring constants in one named block (T19: a deterministic
+// offline sweep — scripts/tune-generator.mjs — grid-searches this exact
+// shape against the tuning-set agreement score and reports a winner; the
+// values below ARE that winner, applied as plain numbers, never computed
+// at runtime).
+// Every scoring function below takes an optional trailing `constants`
+// parameter defaulting to this object, so ordinary callers (index.ts,
+// App.tsx) are unaffected and only the tuning harness ever passes a
+// different set.
+export interface ScoreConstants {
+  // Confidence-damping pseudo-match count: an item's raw win rate is shrunk
+  // toward the hero's mean win rate by treating it as if it had confidenceK
+  // extra matches played at that mean. Low-sample items (a handful of buys)
+  // end up close to the hero mean; high-sample items keep their real rate.
+  confidenceK: number
+  // High-elo (Phantom+) blend sample floor and weight — see
+  // highBadgeBlendWeight's doc comment for the exact ramp behavior.
+  highBadgeMinSample: number
+  highBadgeWeight: number
+  // Composite scoreItem weights (must sum to 1): win rate, usage, item
+  // value-per-soul, archetype-slot bias.
+  winWeight: number
+  useWeight: number
+  valueWeight: number
+  biasWeight: number
+  // archetypeBias's off-own-slot scores: vitality items (mid bonus in both
+  // archetypes) and everything else (low but nonzero).
+  vitalityBias: number
+  offArchetypeBias: number
+}
 
-// High-elo (Phantom+, see HeroAnalytics.high_badge_min) blend, applied BEFORE
-// confidence damping (see blendHighBadgeStat / dampedWinRate below):
-// - At or above HIGH_BADGE_MIN_SAMPLE high-badge matches, an item's win rate
-//   and usage are a HIGH_BADGE_WEIGHT/(1-HIGH_BADGE_WEIGHT) blend of its
-//   high-badge and overall stats (0.75/0.25 by default — >=70% toward high-elo
-//   evidence per T9's spec).
-// - Below that sample size the high-badge weight ramps down linearly to 0 as
-//   high-badge matches -> 0, so a handful of high-elo matches nudges the
-//   blend only a little and a total absence of them falls back to pure
-//   overall stats — a smooth degrade rather than a hard cutoff.
-export const HIGH_BADGE_MIN_SAMPLE = 100
-export const HIGH_BADGE_WEIGHT = 0.75
+export const DEFAULT_SCORE_CONSTANTS: ScoreConstants = {
+  confidenceK: 50,
+  highBadgeMinSample: 100,
+  highBadgeWeight: 0.75,
+  winWeight: 0.35,
+  useWeight: 0.25,
+  valueWeight: 0.25,
+  biasWeight: 0.15,
+  vitalityBias: 0.7,
+  offArchetypeBias: 0.3,
+}
+
+// Back-compat named exports (a few call sites/tests referenced these
+// directly before T19 consolidated everything into ScoreConstants).
+export const HIGH_BADGE_MIN_SAMPLE = DEFAULT_SCORE_CONSTANTS.highBadgeMinSample
+export const HIGH_BADGE_WEIGHT = DEFAULT_SCORE_CONSTANTS.highBadgeWeight
 
 export function heroMeanWinRate(analytics: HeroAnalytics): number {
   let wins = 0
@@ -52,12 +81,12 @@ function safeRate(wins: number | null, matches: number | null): number {
   return (wins ?? 0) / matches
 }
 
-// weight in [0, HIGH_BADGE_WEIGHT]: 0 with no high-badge matches at all,
-// ramping linearly to HIGH_BADGE_WEIGHT at HIGH_BADGE_MIN_SAMPLE and above.
-export function highBadgeBlendWeight(highMatches: number | null): number {
+// weight in [0, constants.highBadgeWeight]: 0 with no high-badge matches at
+// all, ramping linearly to highBadgeWeight at highBadgeMinSample and above.
+export function highBadgeBlendWeight(highMatches: number | null, constants: ScoreConstants = DEFAULT_SCORE_CONSTANTS): number {
   const m = highMatches ?? 0
   if (m <= 0) return 0
-  return HIGH_BADGE_WEIGHT * Math.min(m / HIGH_BADGE_MIN_SAMPLE, 1)
+  return constants.highBadgeWeight * Math.min(m / constants.highBadgeMinSample, 1)
 }
 
 export interface BlendedItemStat {
@@ -77,8 +106,9 @@ export function blendHighBadgeStat(
   high: Pick<ItemStat, 'wins' | 'matches'>,
   maxOverallMatches: number,
   maxHighMatches: number,
+  constants: ScoreConstants = DEFAULT_SCORE_CONSTANTS,
 ): BlendedItemStat {
-  const weight = highBadgeBlendWeight(high.matches)
+  const weight = highBadgeBlendWeight(high.matches, constants)
   const overallMatches = overall.matches ?? 0
   const highMatches = high.matches ?? 0
 
@@ -92,20 +122,25 @@ export function blendHighBadgeStat(
   return { winRate, effectiveMatches, usageRatio }
 }
 
-// Confidence damping (unchanged K=50 shrink-to-hero-mean formula), now taking
-// an already-blended rate + effective match count rather than raw wins.
-export function dampedWinRate(winRate: number, effectiveMatches: number, meanWinRate: number): number {
-  return (winRate * effectiveMatches + CONFIDENCE_K * meanWinRate) / (effectiveMatches + CONFIDENCE_K)
+// Confidence damping (shrink-to-hero-mean formula, K = constants.confidenceK),
+// now taking an already-blended rate + effective match count rather than raw wins.
+export function dampedWinRate(
+  winRate: number,
+  effectiveMatches: number,
+  meanWinRate: number,
+  constants: ScoreConstants = DEFAULT_SCORE_CONSTANTS,
+): number {
+  return (winRate * effectiveMatches + constants.confidenceK * meanWinRate) / (effectiveMatches + constants.confidenceK)
 }
 
 // Archetype bias: items in the archetype's own slot type score highest,
 // vitality (survivability) items get a flat mid bonus in both archetypes
 // since staying alive matters regardless of damage type, and off-archetype
 // items score low but not zero (a strong off-slot item can still make it in).
-export function archetypeBias(item: Item, archetype: Archetype): number {
+export function archetypeBias(item: Item, archetype: Archetype, constants: ScoreConstants = DEFAULT_SCORE_CONSTANTS): number {
   if (item.item_slot_type === archetype) return 1
-  if (item.item_slot_type === 'vitality') return 0.6
-  return 0.2
+  if (item.item_slot_type === 'vitality') return constants.vitalityBias
+  return constants.offArchetypeBias
 }
 
 export interface ItemScoreInputs {
@@ -125,27 +160,31 @@ export interface ItemScoreInputs {
 // (win rate + usage, high-elo-weighted per blendHighBadgeStat/dampedWinRate
 // above) with the item's own stat payload (value-per-soul, normalized
 // against the pool's max) and an archetype slot-type bias.
-export function scoreItem({
-  item,
-  overallWins,
-  overallMatches,
-  highWins,
-  highMatches,
-  meanWinRate,
-  maxOverallMatches,
-  maxHighMatches,
-  maxValuePerSoul,
-  archetype,
-}: ItemScoreInputs): number {
+export function scoreItem(
+  {
+    item,
+    overallWins,
+    overallMatches,
+    highWins,
+    highMatches,
+    meanWinRate,
+    maxOverallMatches,
+    maxHighMatches,
+    maxValuePerSoul,
+    archetype,
+  }: ItemScoreInputs,
+  constants: ScoreConstants = DEFAULT_SCORE_CONSTANTS,
+): number {
   const blended = blendHighBadgeStat(
     { wins: overallWins, matches: overallMatches },
     { wins: highWins, matches: highMatches },
     maxOverallMatches,
     maxHighMatches,
+    constants,
   )
-  const winScore = dampedWinRate(blended.winRate, blended.effectiveMatches, meanWinRate)
+  const winScore = dampedWinRate(blended.winRate, blended.effectiveMatches, meanWinRate, constants)
   const useScore = blended.usageRatio
   const valueScore = maxValuePerSoul > 0 ? statValuePerSoul(item) / maxValuePerSoul : 0
-  const biasScore = archetypeBias(item, archetype)
-  return 0.35 * winScore + 0.25 * useScore + 0.25 * valueScore + 0.15 * biasScore
+  const biasScore = archetypeBias(item, archetype, constants)
+  return constants.winWeight * winScore + constants.useWeight * useScore + constants.valueWeight * valueScore + constants.biasWeight * biasScore
 }

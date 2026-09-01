@@ -78,7 +78,8 @@ score = 0.35 * confidenceDampedWinRate   (shrink the BLENDED win rate below towa
       + 0.25 * usageRate                  (the BLENDED usage ratio below)
       + 0.25 * valuePerSoul               (sum of |non-mechanics stat values| / cost, normalized
                                             against the item pool's max)
-      + 0.15 * archetypeBias              (1.0 own-archetype slot, 0.6 vitality, 0.2 off-archetype)
+      + 0.15 * archetypeBias              (1.0 own-archetype slot, 0.7 vitality, 0.3 off-archetype;
+                                            T19 tuned these two from an initial 0.6/0.2)
 ```
 
 Ties break on ascending item id — the generator is a pure function of its inputs (no randomness, no

@@ -1,6 +1,7 @@
 import { buildAbilityOrder } from './abilityOrder'
 import { buildItemChainGroups } from './itemChains'
-import { heroMeanWinRate, maxHighBadgeItemMatches, maxItemMatches, scoreItem } from './score'
+import { DEFAULT_SCORE_CONSTANTS, heroMeanWinRate, maxHighBadgeItemMatches, maxItemMatches, scoreItem } from './score'
+import type { ScoreConstants } from './score'
 import { isActiveItem, statValuePerSoul } from './statUtils'
 import type { Archetype, Build, BuildItemEntry, BuildPhase, Hero, HeroAnalytics, Item, ItemStat } from './types'
 
@@ -18,6 +19,9 @@ export type {
   StatSection,
   StatSectionStat,
 } from './types'
+export type { ScoreConstants } from './score'
+export { DEFAULT_SCORE_CONSTANTS } from './score'
+export { buildItemChainGroups } from './itemChains'
 
 // Tier -> shopping phase. Tiers map to fixed soul costs in this snapshot
 // (1: 800, 2: 1600, 3: 3200, 4: 6400, 5: 9999), so gating by tier is the same
@@ -72,23 +76,27 @@ function buildForArchetype(
   archetype: Archetype,
   abilityOrder: Build['ability_order'],
   chainGroups: Map<number, Set<number>>,
+  constants: ScoreConstants,
 ): { build: Build; totalScore: number } {
   const scored = items
     .map((item) => {
       const stat = itemStatsById.get(item.id)
       const highStat = highBadgeStatsById.get(item.id)
-      const score = scoreItem({
-        item,
-        overallWins: stat?.wins ?? null,
-        overallMatches: stat?.matches ?? null,
-        highWins: highStat?.wins ?? null,
-        highMatches: highStat?.matches ?? null,
-        meanWinRate,
-        maxOverallMatches: maxMatches,
-        maxHighMatches,
-        maxValuePerSoul,
-        archetype,
-      })
+      const score = scoreItem(
+        {
+          item,
+          overallWins: stat?.wins ?? null,
+          overallMatches: stat?.matches ?? null,
+          highWins: highStat?.wins ?? null,
+          highMatches: highStat?.matches ?? null,
+          meanWinRate,
+          maxOverallMatches: maxMatches,
+          maxHighMatches,
+          maxValuePerSoul,
+          archetype,
+        },
+        constants,
+      )
       return { item, score }
     })
     // Stable rank: highest score first, ascending item id breaks ties.
@@ -158,7 +166,11 @@ function buildForArchetype(
 // abilityOrder.ts for the level-up sequence fallback) and exports only the
 // single highest-scoring one (see pickBestBuild) — the app shows exactly one
 // recommended build per hero (T13).
-export function generateBuilds(hero: Hero, items: Item[], analytics: HeroAnalytics): Build {
+// `constants` (T19) overrides the default scoring weights (score.ts's
+// DEFAULT_SCORE_CONSTANTS) — ordinary callers (App.tsx) never pass it; only
+// scripts/tune-generator.mjs's offline sweep does, via this same real
+// generator code, never a reimplementation.
+export function generateBuilds(hero: Hero, items: Item[], analytics: HeroAnalytics, constants: ScoreConstants = DEFAULT_SCORE_CONSTANTS): Build {
   // T18: any analytics row for an item id outside the catalog is skipped
   // everywhere (score, buy order) — the catalog (items.json, ONLY real,
   // currently-shopable items) is the sole source of what's pickable.
@@ -190,6 +202,7 @@ export function generateBuilds(hero: Hero, items: Item[], analytics: HeroAnalyti
       archetype,
       abilityOrder,
       chainGroups,
+      constants,
     )
     return { archetype, totalScore, build }
   })
