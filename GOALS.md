@@ -13,13 +13,6 @@
 
 ## Open tickets
 
-- [ ] **T4 — Held-out validation + personalization**
-  Goal: src/validation/ scores generated builds against Zergggy's core set; src/personalization/ computes one displayed insight.
-  Files: src/validation/**, src/personalization/**, src/test/validation.test.ts.
-  Spec: core set = items appearing in ≥30% of his sampled matches, win-weighted (each match weight: win 1.5, loss 1.0 — document exact formula in README); items below threshold are "experiments", excluded entirely. Per generated build: per-item core/not-core flag + agreement % in [0,100] = weighted blend of core-set overlap and buy-order agreement (pairwise order concordance on shared items) — document the formula. Personalization: median standard-match duration for account 267836488 → an annotation shaping/labeling the late-game budget line. Frame all validation output as "how well the generator did", never as a build source.
-  Acceptance: validation.test.ts covers core-set math on a small fixture, agreement bounds, and experiments exclusion; only src/validation/ reads zergggy paths.
-  Verify: `npm test && npm run gate:heldout`
-
 - [ ] **T5 — Mobile-first interactive UI**
   Goal: the full app per spec, designed at 390×844.
   Files: src/App.tsx, src/components/**, styles.
