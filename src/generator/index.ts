@@ -139,6 +139,13 @@ function buildForArchetype(
     // deterministic (see runGreedyPass).
     .sort((a, b) => b.score - a.score || a.item.id - b.item.id)
   const usageRatioById = new Map(scored.map(({ item, usageRatio }) => [item.id, usageRatio]))
+  const itemsById = new Map(items.map((item) => [item.id, item]))
+  // Below-floor-priority order (T26 fallback fix): usage share descending,
+  // ascending item id tie-break — used ONLY by the starvation-fallback pass
+  // below, so a 1%-usage item is the last resort, never the first fallback.
+  const usageOrder = [...scored].sort(
+    (a, b) => (usageRatioById.get(b.item.id) ?? 0) - (usageRatioById.get(a.item.id) ?? 0) || a.item.id - b.item.id,
+  )
 
   const phaseBuckets: Record<BuildPhase, Item[]> = { early: [], mid: [], late: [] }
   const selectedIds = new Set<number>()
@@ -149,12 +156,53 @@ function buildForArchetype(
   const blockedByChain = new Set<number>()
   let activeCount = 0
 
-  const tryTake = (item: Item, phase: BuildPhase) => {
-    phaseBuckets[phase].push(item)
-    selectedIds.add(item.id)
-    if (isActiveItem(item)) activeCount++
+  // T26: when a chain group wins a slot, the STAGE actually added to the
+  // build is the chain member with the highest hero usage share (stable
+  // tie: ascending item id) — not necessarily `item`, which only decides
+  // WHETHER the chain group wins the slot (via the greedy score pass
+  // below). An early-tier component that's a mass-usage staple can lose the
+  // score competition to its own top-tier upgrade, whose thin high-elo
+  // sample lets it post a hotter raw win rate — showing the endpoint
+  // instead of the actually-bought stage is exactly the diagnosed T26 bug.
+  const chainStage = (item: Item): Item => {
+    if (!constants.chainStageByUsage) return item
     const chain = chainGroups.get(item.id)
-    if (chain) for (const chainId of chain) if (chainId !== item.id) blockedByChain.add(chainId)
+    if (!chain || chain.size <= 1) return item
+    let best = item
+    let bestUsage = usageRatioById.get(item.id) ?? 0
+    for (const chainId of chain) {
+      if (chainId === item.id) continue
+      const candidate = itemsById.get(chainId)
+      if (!candidate) continue
+      const usage = usageRatioById.get(chainId) ?? 0
+      if (usage > bestUsage || (usage === bestUsage && chainId < best.id)) {
+        best = candidate
+        bestUsage = usage
+      }
+    }
+    return best
+  }
+
+  // T26: the winning candidate's OWN tier decides which phase bucket/quota
+  // slot it consumes (unchanged from pre-T26 behavior) — only the item
+  // actually pushed into that bucket (and so shown in the build) is
+  // swapped to its chain's highest-usage stage. A cheap early component
+  // filling a "late slot" this way is intentional: the composite score that
+  // won the slot came from the (often thin-sample) endpoint, but the
+  // hero-tier phase grouping still reflects when that slot was earned.
+  const tryTake = (item: Item) => {
+    const phase = tierPhase(item.item_tier)
+    const chosen = chainStage(item)
+    phaseBuckets[phase].push(chosen)
+    selectedIds.add(chosen.id)
+    // Track the active-item cap against the WINNING candidate `item`, not
+    // the displayed `chosen` stage — isEligible's cap check below gates on
+    // `item`'s own active status, so the increment has to match that same
+    // item or the cap silently drifts as chain swaps change which item
+    // "counts" between the two checks.
+    if (isActiveItem(item)) activeCount++
+    const chain = chainGroups.get(chosen.id)
+    if (chain) for (const chainId of chain) if (chainId !== chosen.id) blockedByChain.add(chainId)
   }
 
   const total = () => phaseBuckets.early.length + phaseBuckets.mid.length + phaseBuckets.late.length
@@ -165,6 +213,11 @@ function buildForArchetype(
   // fills from the existing stable score order rather than coming up short.
   const isEligible = (item: Item, respectQuota: boolean, allowBelowFloor: boolean): boolean => {
     if (selectedIds.has(item.id) || blockedByChain.has(item.id)) return false
+    // T26: also guard the chain stage tryTake would actually add — a
+    // different original candidate can resolve to the same already-taken
+    // stage (see chainStage/tryTake above).
+    const chosen = chainStage(item)
+    if (chosen.id !== item.id && (selectedIds.has(chosen.id) || blockedByChain.has(chosen.id))) return false
     if (isActiveItem(item) && activeCount >= ACTIVE_ITEM_CAP) return false
     if (!allowBelowFloor && (usageRatioById.get(item.id) ?? 0) < constants.minUsageShare) return false
     if (respectQuota) {
@@ -183,43 +236,68 @@ function buildForArchetype(
   // the original highest-static-score/lowest-id ordering — determinism is
   // unchanged when pairSynergyWeight is 0 (bonus is always 0, so the
   // effective order collapses to the static order).
-  const runGreedyPass = (respectQuota: boolean, targetTotal: number, allowBelowFloor: boolean) => {
+  const runGreedyPass = (respectQuota: boolean, targetTotal: number) => {
     while (total() < targetTotal) {
-      let best: { item: Item; phase: BuildPhase; effectiveScore: number } | null = null
+      let best: { item: Item; effectiveScore: number } | null = null
       for (const { item, score } of scored) {
-        if (!isEligible(item, respectQuota, allowBelowFloor)) continue
+        if (!isEligible(item, respectQuota, false)) continue
         const bonus = pairSynergyBonus(item.id, selectedIds, pairStatsByKey, meanWinRate, constants)
         const effectiveScore = score + bonus
         if (best === null || effectiveScore > best.effectiveScore) {
-          best = { item, phase: tierPhase(item.item_tier), effectiveScore }
+          best = { item, effectiveScore }
         }
       }
       if (best === null) break
-      tryTake(best.item, best.phase)
+      tryTake(best.item)
+    }
+  }
+
+  // T26 starvation fallback: only reached if the floor left a phase (or the
+  // overall minimum) short of eligible items. Unlike the score-driven pass
+  // above, this iterates usageOrder (highest usage share first, ascending id
+  // tie-break) rather than the composite-score order — a 1%-usage item must
+  // be the last resort, not the first fallback picked. No pair-synergy bonus
+  // here: this is a pure starvation backstop, not a competitive ranking.
+  const runFallbackPass = (respectQuota: boolean, targetTotal: number) => {
+    while (total() < targetTotal) {
+      let picked: Item | null = null
+      for (const { item } of usageOrder) {
+        if (!isEligible(item, respectQuota, true)) continue
+        picked = item
+        break
+      }
+      if (picked === null) break
+      tryTake(picked)
     }
   }
 
   const quotaTotal = PHASE_TARGET_COUNTS.early + PHASE_TARGET_COUNTS.mid + PHASE_TARGET_COUNTS.late
-  runGreedyPass(true, quotaTotal, false)
+  runGreedyPass(true, quotaTotal)
   // Backfill (any tier, quota ignored) if the phase quotas above didn't reach
   // the required minimum — not expected with this snapshot's item counts,
   // but keeps the ≥12-item guarantee robust regardless of pool size.
-  runGreedyPass(false, MIN_TOTAL_ITEMS, false)
-  // T25 starvation fallback: only reached if the floor left a phase (or the
-  // overall minimum) short of eligible items — re-run the same two passes
-  // allowing below-floor items, in the existing stable score order.
-  runGreedyPass(true, quotaTotal, true)
-  runGreedyPass(false, MIN_TOTAL_ITEMS, true)
+  runGreedyPass(false, MIN_TOTAL_ITEMS)
+  runFallbackPass(true, quotaTotal)
+  runFallbackPass(false, MIN_TOTAL_ITEMS)
 
-  const orderedItems = [...phaseBuckets.early, ...phaseBuckets.mid, ...phaseBuckets.late]
+  // T26: phase here is the bucket the item's slot was WON in (see tryTake),
+  // not necessarily tierPhase(item.item_tier) — a chain-stage swap can land
+  // an earlier-tier item in a later bucket. Reading it off the bucket keeps
+  // the displayed sequence's phase grouping and running_total consistent
+  // with each other regardless of the swap.
+  const orderedEntries: Array<{ item: Item; phase: BuildPhase }> = [
+    ...phaseBuckets.early.map((item) => ({ item, phase: 'early' as const })),
+    ...phaseBuckets.mid.map((item) => ({ item, phase: 'mid' as const })),
+    ...phaseBuckets.late.map((item) => ({ item, phase: 'late' as const })),
+  ]
   let runningTotal = 0
-  const buildItems: BuildItemEntry[] = orderedItems.map((item) => {
+  const buildItems: BuildItemEntry[] = orderedEntries.map(({ item, phase }) => {
     runningTotal += item.cost
-    return { item_id: item.id, phase: tierPhase(item.item_tier), cost: item.cost, running_total: runningTotal }
+    return { item_id: item.id, phase, cost: item.cost, running_total: runningTotal }
   })
 
   const scoreById = new Map(scored.map(({ item, score }) => [item.id, score]))
-  const totalScore = orderedItems.reduce((sum, item) => sum + (scoreById.get(item.id) ?? 0), 0)
+  const totalScore = orderedEntries.reduce((sum, { item }) => sum + (scoreById.get(item.id) ?? 0), 0)
 
   const build: Build = {
     name: `${hero.name} Build`,

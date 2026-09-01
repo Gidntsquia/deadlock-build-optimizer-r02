@@ -44,6 +44,27 @@ export interface ScoreConstants {
   // dampedWinRate shrinks them fully to the hero mean. See index.ts's
   // buildForArchetype for the starvation fallback when a phase runs short.
   minUsageShare: number
+  // Usage-scaled win-rate confidence (T26): an item's win-rate DEVIATION
+  // from the hero mean (dampedWinRate - meanWinRate) is scaled by
+  // min(1, usageShare / usageConfidenceShare) before entering the
+  // composite — a thin-usage item riding a hot win rate gets pulled back
+  // toward the mean, so it can't outrank a mass-usage staple on WR alone.
+  // 0 disables the scale entirely (factor always 1, T25-era behavior). See
+  // usageConfidenceScale below.
+  usageConfidenceShare: number
+  // T26: when a chain group wins a build slot, display the chain member
+  // with the highest hero usage share instead of the item that won the
+  // score competition (see index.ts's chainStage). Grid-searched rather
+  // than hardwired on: measured against the tuning-set agreement (see
+  // scripts/tune-generator.mjs / PROGRESS.md), this consistently regresses
+  // agreement because hero-wide usage share is confounded by chain
+  // position — an early, cheap component is reached by far more matches
+  // than its own top-tier upgrade regardless of which one players actually
+  // settle on, so "highest usage" skews toward "cheapest," not "actually
+  // bought." Left in as an option (and in the tune grid) rather than
+  // deleted, since a future re-tune against a different snapshot may find
+  // it helps.
+  chainStageByUsage: boolean
 }
 
 export const DEFAULT_SCORE_CONSTANTS: ScoreConstants = {
@@ -65,6 +86,12 @@ export const DEFAULT_SCORE_CONSTANTS: ScoreConstants = {
   // committed snapshot) — comfortably above the 12-item minimum build size,
   // so the starvation fallback is not expected to trigger in practice.
   minUsageShare: 0.01,
+  // T26: 0 (off) until the re-tune below picks a winner — see PROGRESS.md.
+  usageConfidenceShare: 0,
+  // T26 re-tune winner (see PROGRESS.md): displaying the highest-usage chain
+  // stage measured worse than the score-winning endpoint on every grid combo
+  // tried, so it stays off.
+  chainStageByUsage: false,
 }
 
 // Back-compat named exports (a few call sites/tests referenced these
@@ -200,6 +227,16 @@ export function pairLift(
   return dampedWinRate(rate, pairStat.matches, meanWinRate, constants) - meanWinRate
 }
 
+// Usage-scaled win-rate confidence (T26): how much of a damped win rate's
+// deviation from the hero mean should count, given this item's usage share.
+// A 5%-usage item scaled against a 0.3 usageConfidenceShare keeps only
+// 1/6 of its WR deviation; a mass-usage staple (share >= usageConfidenceShare)
+// keeps all of it. usageConfidenceShare <= 0 disables the scale (always 1).
+export function usageConfidenceScale(usageShare: number, constants: ScoreConstants = DEFAULT_SCORE_CONSTANTS): number {
+  if (constants.usageConfidenceShare <= 0) return 1
+  return Math.min(1, usageShare / constants.usageConfidenceShare)
+}
+
 export interface ItemScoreInputs {
   item: Item
   overallWins: number | null
@@ -239,8 +276,11 @@ export function scoreItem(
     maxHighMatches,
     constants,
   )
-  const winScore = dampedWinRate(blended.winRate, blended.effectiveMatches, meanWinRate, constants)
   const useScore = blended.usageRatio
+  const damped = dampedWinRate(blended.winRate, blended.effectiveMatches, meanWinRate, constants)
+  // T26: scale the WR deviation from mean by usage confidence — a thin-usage
+  // item can't ride a hot win rate past mass-usage staples.
+  const winScore = meanWinRate + (damped - meanWinRate) * usageConfidenceScale(useScore, constants)
   const valueScore = maxValuePerSoul > 0 ? statValuePerSoul(item) / maxValuePerSoul : 0
   const biasScore = archetypeBias(item, archetype, constants)
   const composite =

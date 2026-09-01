@@ -18,6 +18,7 @@ import {
   maxItemMatches,
   pairLift,
   scoreItem,
+  usageConfidenceScale,
 } from '../generator/score'
 import type { Ability, AbilityOrderStat } from '../generator/types'
 
@@ -455,6 +456,70 @@ describe('heroAffinityMultiplier', () => {
   })
 })
 
+describe('usageConfidenceScale (T26)', () => {
+  it('usageConfidenceShare 0 disables the scale (always 1), any usage share', () => {
+    const constants = { ...DEFAULT_SCORE_CONSTANTS, usageConfidenceShare: 0 }
+    expect(usageConfidenceScale(0.01, constants)).toBe(1)
+    expect(usageConfidenceScale(0, constants)).toBe(1)
+  })
+
+  it('a mass-usage item (share >= usageConfidenceShare) keeps its full WR deviation', () => {
+    const constants = { ...DEFAULT_SCORE_CONSTANTS, usageConfidenceShare: 0.2 }
+    expect(usageConfidenceScale(0.2, constants)).toBeCloseTo(1, 10)
+    expect(usageConfidenceScale(0.9, constants)).toBeCloseTo(1, 10)
+  })
+
+  it('a thin-usage item is scaled down proportionally to its usage share', () => {
+    const constants = { ...DEFAULT_SCORE_CONSTANTS, usageConfidenceShare: 0.2 }
+    // 0.05 / 0.2 = 0.25
+    expect(usageConfidenceScale(0.05, constants)).toBeCloseTo(0.25, 10)
+  })
+
+  it('scoreItem: a thin-usage item riding a hot win rate cannot outscore a mass-usage staple at a mean win rate', () => {
+    const fixtureItem = (id: number): Item => ({
+      id,
+      class_name: 'fixture_item',
+      name: `Item ${id}`,
+      components: [],
+      cost: 1000,
+      item_tier: 2,
+      item_slot_type: 'weapon',
+      image: null,
+      stat_lines: [],
+      stat_sections: [],
+      is_active_item: false,
+      active_description: null,
+      passive_description: null,
+      roster_usage_share: null,
+    })
+    const constants = {
+      ...DEFAULT_SCORE_CONSTANTS,
+      usageConfidenceShare: 0.3,
+      useWeight: 0,
+      valueWeight: 0,
+      biasWeight: 0,
+      winWeight: 1,
+      affinityWeight: 0, // isolate the usage-confidence effect from T23's affinity multiplier
+    }
+    const base = {
+      meanWinRate: 0.5,
+      maxOverallMatches: 1000,
+      maxHighMatches: 0,
+      maxValuePerSoul: 0,
+      archetype: 'weapon' as const,
+      highWins: null,
+      highMatches: null,
+    }
+    // Thin-usage item: 5% usage share (50/1000 matches), a hot 90% win rate.
+    const thinHot = scoreItem({ ...base, item: fixtureItem(1), overallWins: 45, overallMatches: 50 }, constants)
+    // Mass-usage item: 100% usage share (1000/1000 matches), a solid but
+    // unspectacular 60% win rate — clears usageConfidenceShare, so it keeps
+    // its full (smaller) deviation from the mean rather than being scaled.
+    const massModerate = scoreItem({ ...base, item: fixtureItem(2), overallWins: 600, overallMatches: 1000 }, constants)
+    expect(thinHot).toBeLessThan(massModerate)
+  })
+})
+
 describe('pairLift', () => {
   const constants = { ...DEFAULT_SCORE_CONSTANTS, confidenceK: 50 }
   const meanWinRate = 0.5
@@ -811,5 +876,179 @@ describe('generateBuilds: usage-share eligibility floor (T25)', () => {
     // below-floor pool, lowest id first (124 loses out).
     expect(new Set(earlyIds)).toEqual(new Set([120, 121, 122, 123]))
     expect(earlyIds).toHaveLength(4)
+  })
+})
+
+describe('generateBuilds: usage-dominant build quality (T26)', () => {
+  function fixtureItem(id: number, tier: number, components: number[] = []): Item {
+    return {
+      id,
+      class_name: 'fixture_item',
+      name: `Item ${id}`,
+      components,
+      cost: tier * 1000,
+      item_tier: tier,
+      item_slot_type: 'vitality',
+      image: null,
+      stat_lines: [],
+      stat_sections: [],
+      is_active_item: false,
+      active_description: null,
+      passive_description: null,
+      roster_usage_share: null,
+    }
+  }
+
+  const hero: Hero = {
+    id: 998,
+    name: 'T26 Fixture Hero',
+    image: null,
+    base_stats: {},
+    stat_growth: {},
+    abilities: [
+      { id: 1, name: 'A', image: null },
+      { id: 2, name: 'B', image: null },
+      { id: 3, name: 'C', image: null },
+      { id: 4, name: 'D', image: null },
+    ],
+  }
+
+  function analyticsFrom(statRows: Array<[number, number, number]>): HeroAnalytics {
+    return {
+      hero_id: hero.id,
+      item_stats: statRows.map(([item_id, wins, matches]) => ({ item_id, wins, matches })),
+      high_badge_min: 81,
+      high_badge_item_stats: [],
+      ability_order_stats: [],
+      high_badge_ability_order_stats: [],
+      item_pair_stats: [],
+    }
+  }
+
+  it('a chain group win is shown as its highest-usage stage, not the highest-scoring endpoint', () => {
+    // Real-world shape: an upgrade endpoint with a thin, hot win-rate sample
+    // outscores its own high-usage component (like Boundless Spirit vs.
+    // Improved Spirit) — the endpoint should still WIN the slot (it has the
+    // higher static score), but the STAGE actually shown must be the
+    // component, since it's the one Zergggy players actually buy.
+    const component = fixtureItem(600, 1) // high usage (usage 900/900 = 1.0)
+    const upgrade = fixtureItem(601, 1, [600]) // thin sample, hot win rate, low usage
+    const earlyFillers = [602, 603, 604].map((id) => fixtureItem(id, 1))
+    const mid = [700, 701, 702, 703].map((id) => fixtureItem(id, 3))
+    const late = [800, 801, 802, 803, 804].map((id) => fixtureItem(id, 4))
+    const items = [component, upgrade, ...earlyFillers, ...mid, ...late]
+
+    const analytics = analyticsFrom([
+      [component.id, 495, 900], // 0.55 WR, usage 1.0 (sets maxItemMatches)
+      [upgrade.id, 48, 50], // 0.96 WR (thin sample), usage 50/900 ~= 0.056
+      ...earlyFillers.map((item): [number, number, number] => [item.id, 100, 200]),
+      ...mid.map((item): [number, number, number] => [item.id, 150, 300]),
+      ...late.map((item): [number, number, number] => [item.id, 150, 300]),
+    ])
+
+    // winWeight=1/useWeight=0 isolates score from usage entirely, so the
+    // endpoint's win rate alone decides which chain member wins the slot —
+    // proving the display swap runs independently of how the slot was won.
+    const constants = {
+      ...DEFAULT_SCORE_CONSTANTS,
+      winWeight: 1,
+      useWeight: 0,
+      valueWeight: 0,
+      biasWeight: 0,
+      affinityWeight: 0,
+      pairSynergyWeight: 0,
+      usageConfidenceShare: 0,
+      chainStageByUsage: true, // exercise the swap directly; off by default (see score.ts)
+    }
+
+    const build = generateBuilds(hero, items, analytics, constants)
+    const pickedIds = new Set(build.items.map((entry) => entry.item_id))
+    expect(pickedIds.has(component.id)).toBe(true)
+    expect(pickedIds.has(upgrade.id)).toBe(false)
+  })
+
+  it('chainStageByUsage off (the default) shows the score-winning item itself, no swap', () => {
+    const component = fixtureItem(600, 1)
+    const upgrade = fixtureItem(601, 1, [600])
+    const earlyFillers = [602, 603, 604].map((id) => fixtureItem(id, 1))
+    const mid = [700, 701, 702, 703].map((id) => fixtureItem(id, 3))
+    const late = [800, 801, 802, 803, 804].map((id) => fixtureItem(id, 4))
+    const items = [component, upgrade, ...earlyFillers, ...mid, ...late]
+
+    const analytics = analyticsFrom([
+      [component.id, 495, 900],
+      [upgrade.id, 48, 50],
+      ...earlyFillers.map((item): [number, number, number] => [item.id, 100, 200]),
+      ...mid.map((item): [number, number, number] => [item.id, 150, 300]),
+      ...late.map((item): [number, number, number] => [item.id, 150, 300]),
+    ])
+
+    const constants = {
+      ...DEFAULT_SCORE_CONSTANTS,
+      winWeight: 1,
+      useWeight: 0,
+      valueWeight: 0,
+      biasWeight: 0,
+      affinityWeight: 0,
+      pairSynergyWeight: 0,
+      usageConfidenceShare: 0,
+      chainStageByUsage: false,
+    }
+
+    const build = generateBuilds(hero, items, analytics, constants)
+    const pickedIds = new Set(build.items.map((entry) => entry.item_id))
+    expect(pickedIds.has(upgrade.id)).toBe(true)
+    expect(pickedIds.has(component.id)).toBe(false)
+  })
+
+  it('starvation fallback prefers the highest-usage below-floor candidate over the highest-scoring one', () => {
+    // A hero-wide anchor sets maxItemMatches sky-high so every early-tier
+    // candidate below is unambiguously below the 0.01 usage floor, while
+    // still differing from each other in *relative* usage.
+    const anchor = fixtureItem(900, 3)
+    const midFillers = [901, 902, 903].map((id) => fixtureItem(id, 3))
+    const late = [910, 911, 912, 913, 914].map((id) => fixtureItem(id, 4))
+    const eligibleEarly = [120, 121].map((id) => fixtureItem(id, 1)) // usage 1500/100000 = 0.015, clears the floor
+    // All three below the 0.01 floor, but with opposite score vs. usage
+    // rankings: itemA has the lowest win rate (lowest score) but the
+    // highest matches (highest usage); itemC is the mirror image.
+    const itemA = fixtureItem(130, 1) // usage 30/100000, WR 0.1 (lowest score)
+    const itemB = fixtureItem(131, 1) // usage 20/100000, WR 0.5 (mid score)
+    const itemC = fixtureItem(132, 1) // usage 10/100000, WR 0.9 (highest score)
+    const items = [...eligibleEarly, itemA, itemB, itemC, anchor, ...midFillers, ...late]
+
+    const analytics = analyticsFrom([
+      [anchor.id, 50000, 100000],
+      ...midFillers.map((item): [number, number, number] => [item.id, 400, 800]),
+      ...late.map((item): [number, number, number] => [item.id, 400, 800]),
+      ...eligibleEarly.map((item): [number, number, number] => [item.id, 750, 1500]),
+      [itemA.id, 3, 30],
+      [itemB.id, 10, 20],
+      [itemC.id, 9, 10],
+    ])
+
+    // winWeight=1/useWeight=0 again isolates the fallback's usage-priority
+    // ordering from the (unrelated) composite-score weighting.
+    const constants = {
+      ...DEFAULT_SCORE_CONSTANTS,
+      winWeight: 1,
+      useWeight: 0,
+      valueWeight: 0,
+      biasWeight: 0,
+      affinityWeight: 0,
+      pairSynergyWeight: 0,
+      usageConfidenceShare: 0,
+    }
+
+    const build = generateBuilds(hero, items, analytics, constants)
+    const earlyIds = new Set(build.items.filter((e) => e.phase === 'early').map((e) => e.item_id))
+    // Only 2 fallback slots are needed (2 eligible + 2 fallback = the early
+    // quota of 4). The old score-ordered fallback would have picked C then
+    // B (highest score first); the fix picks A then B (highest usage
+    // first) — so A must be in, C must be out.
+    expect(earlyIds.has(itemA.id)).toBe(true)
+    expect(earlyIds.has(itemB.id)).toBe(true)
+    expect(earlyIds.has(itemC.id)).toBe(false)
+    expect(earlyIds).toEqual(new Set([120, 121, itemA.id, itemB.id]))
   })
 })

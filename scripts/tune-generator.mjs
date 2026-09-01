@@ -60,13 +60,17 @@ async function buildEntry() {
 //
 // T23: two new dimensions (affinityWeight, pairSynergyWeight) join the
 // sweep, and weightsProfile gains two "heavier" usage/win-rate options per
-// the user's explicit request. Sweeping all seven dimensions as one
-// cross product (3*3*3*5*3*3*3 = 3645) would blow the ticket's ~1500-combo
-// bound, so this is a coarse-then-fine two-stage sweep instead (see main()):
-// stage 1 is exactly the T19 grid shape (405 combos, affinity/pairSynergy
-// held at 0 = no effect) to pick the base profile; stage 2 fixes that
-// winner and sweeps affinityWeight x pairSynergyWeight (9 combos) on top of
-// it. Total: 414 combos.
+// the user's explicit request. T26 adds two more usage-DOMINANT profiles
+// (usage weight up to ~0.6, win-rate down to ~0.1) plus a third stage
+// sweeping usageConfidenceShare x minUsageShare x chainStageByUsage.
+// Sweeping every dimension as one cross product would blow the ticket's
+// ~1500-combo bound, so this stays a coarse-then-fine sweep (see main()):
+// stage 1 is the T19 grid shape with the T26 profile additions
+// (3*3*3*7*3 = 567 combos, all other new dims held at baseline) to pick the
+// base profile; stage 2 fixes that winner and sweeps affinityWeight x
+// pairSynergyWeight (9 combos); stage 3 fixes stage 2's winner and sweeps
+// usageConfidenceShare x minUsageShare x chainStageByUsage (18 combos).
+// Total: 594 combos.
 const GRID = {
   confidenceK: [50, 25, 75],
   highBadgeMinSample: [100, 50, 150],
@@ -79,6 +83,11 @@ const GRID = {
     // 80% of the composite, value/bias squeezed to a thin tie-break each.
     { name: 'winUseHeavy', winWeight: 0.4, useWeight: 0.4, valueWeight: 0.1, biasWeight: 0.1 },
     { name: 'useMax', winWeight: 0.3, useWeight: 0.5, valueWeight: 0.1, biasWeight: 0.1 },
+    // T26 usage-DOMINANT options: usage is the primary signal, win rate a
+    // thin tie-break — per the ticket's diagnosis that item-level WR on
+    // Infernus is nearly noise (48-54% span) without volume behind it.
+    { name: 'usageDominant', winWeight: 0.2, useWeight: 0.5, valueWeight: 0.15, biasWeight: 0.15 },
+    { name: 'usageMax', winWeight: 0.1, useWeight: 0.6, valueWeight: 0.15, biasWeight: 0.15 },
   ],
   archetypeBiasProfile: [
     { name: 'default', vitalityBias: 0.6, offArchetypeBias: 0.2 },
@@ -89,6 +98,13 @@ const GRID = {
   // swept in stage 2 only (see comment above).
   affinityWeight: [0, 0.15, 0.3],
   pairSynergyWeight: [0, 0.1, 0.2],
+  // T26: usage-scaled win-rate confidence share, the T25 usage-floor
+  // eligibility threshold, and whether a chain group's build slot displays
+  // its highest-usage stage instead of the score-winning item — all swept
+  // in stage 3 only (see comment above).
+  usageConfidenceShare: [0, 0.2, 0.3],
+  minUsageShare: [0.01, 0.05, 0.1],
+  chainStageByUsage: [false, true],
 }
 // Canonical parameter order for tie-breaking (also the grid's own key
 // order above) and each dimension's baseline (index 0 in every list above
@@ -192,6 +208,45 @@ function isBetterStage2(a, b) {
   return 0
 }
 
+// Stage 3 (T26): sweeps only usageConfidenceShare x minUsageShare, holding
+// everything else at stage 2's winning constants.
+function* enumerateUsageFloorCombos() {
+  for (const usageConfidenceShare of GRID.usageConfidenceShare) {
+    for (const minUsageShare of GRID.minUsageShare) {
+      for (const chainStageByUsage of GRID.chainStageByUsage) {
+        yield { usageConfidenceShare, minUsageShare, chainStageByUsage }
+      }
+    }
+  }
+}
+
+function isBetterStage3(a, b) {
+  if (a.agreement !== b.agreement) return a.agreement > b.agreement
+  const changesA =
+    (a.combo.usageConfidenceShare !== GRID.usageConfidenceShare[0] ? 1 : 0) +
+    (a.combo.minUsageShare !== GRID.minUsageShare[0] ? 1 : 0) +
+    (a.combo.chainStageByUsage !== GRID.chainStageByUsage[0] ? 1 : 0)
+  const changesB =
+    (b.combo.usageConfidenceShare !== GRID.usageConfidenceShare[0] ? 1 : 0) +
+    (b.combo.minUsageShare !== GRID.minUsageShare[0] ? 1 : 0) +
+    (b.combo.chainStageByUsage !== GRID.chainStageByUsage[0] ? 1 : 0)
+  if (changesA !== changesB) return changesA < changesB
+  const ka = [
+    GRID.usageConfidenceShare.indexOf(a.combo.usageConfidenceShare),
+    GRID.minUsageShare.indexOf(a.combo.minUsageShare),
+    GRID.chainStageByUsage.indexOf(a.combo.chainStageByUsage),
+  ]
+  const kb = [
+    GRID.usageConfidenceShare.indexOf(b.combo.usageConfidenceShare),
+    GRID.minUsageShare.indexOf(b.combo.minUsageShare),
+    GRID.chainStageByUsage.indexOf(b.combo.chainStageByUsage),
+  ]
+  for (let i = 0; i < ka.length; i++) {
+    if (ka[i] !== kb[i]) return ka[i] - kb[i]
+  }
+  return 0
+}
+
 function sanityCheckAllHeroes(heroes, items, analyticsByHeroId, generateBuilds, buildItemChainGroups, constants) {
   const chainGroups = buildItemChainGroups(items)
   for (const hero of heroes) {
@@ -281,18 +336,53 @@ async function main() {
   }
   if (!stage2Winner) throw new Error('No stage-2 combo passed the sanity floor')
 
-  const totalCombosSearched = combosSearched + stage2CombosSearched
+  // Stage 3 (T26): fix stage 2's winning constants, sweep usage-scaled
+  // win-rate confidence x the usage-floor eligibility threshold x
+  // chain-stage-by-usage display on top.
+  const stage2Constants = stage2Winner.constants
+  let stage3CombosSearched = 0
+  const stage3Results = []
+  for (const combo of enumerateUsageFloorCombos()) {
+    stage3CombosSearched++
+    const constants = {
+      ...stage2Constants,
+      usageConfidenceShare: combo.usageConfidenceShare,
+      minUsageShare: combo.minUsageShare,
+      chainStageByUsage: combo.chainStageByUsage,
+    }
+    const build_ = generateBuilds(infernus, items, infernusAnalytics, constants)
+    const agreement = validateBuildAgainstMatches(build_, zergMatches).agreement_percent
+    stage3Results.push({ combo, constants, agreement })
+  }
+  stage3Results.sort((a, b) => (isBetterStage3(a, b) ? -1 : isBetterStage3(b, a) ? 1 : 0))
 
-  console.log('--- T19/T23 tuning sweep ---')
+  let stage3Winner = null
+  for (const candidate of stage3Results) {
+    const sanity = sanityCheckAllHeroes(heroes, items, analyticsByHeroId, generateBuilds, buildItemChainGroups, candidate.constants)
+    if (sanity.ok) {
+      stage3Winner = candidate
+      break
+    }
+    console.warn(`Skipping stage-3 combo (failed sanity: ${sanity.reason})`)
+  }
+  if (!stage3Winner) throw new Error('No stage-3 combo passed the sanity floor')
+
+  const totalCombosSearched = combosSearched + stage2CombosSearched + stage3CombosSearched
+
+  console.log('--- T19/T23/T26 tuning sweep ---')
   console.log(`Stage 1 grid: ${combosSearched} combos over dimensions ${JSON.stringify(DIMENSION_ORDER)}`)
   console.log(`Stage 2 grid: ${stage2CombosSearched} combos over dimensions ["affinityWeight","pairSynergyWeight"]`)
+  console.log(`Stage 3 grid: ${stage3CombosSearched} combos over dimensions ["usageConfidenceShare","minUsageShare","chainStageByUsage"]`)
   console.log(`Total combos searched: ${totalCombosSearched}`)
   console.log(`Baseline (current DEFAULT_SCORE_CONSTANTS) agreement: ${baselineAgreement}%`)
   console.log(`Stage 1 winning agreement: ${winner.agreement}% (changes from baseline: ${changesFromBaseline(winner.combo)})`)
   console.log(`Stage 2 winning agreement: ${stage2Winner.agreement}% (affinityWeight=${stage2Winner.combo.affinityWeight}, pairSynergyWeight=${stage2Winner.combo.pairSynergyWeight})`)
+  console.log(
+    `Stage 3 winning agreement: ${stage3Winner.agreement}% (usageConfidenceShare=${stage3Winner.combo.usageConfidenceShare}, minUsageShare=${stage3Winner.combo.minUsageShare}, chainStageByUsage=${stage3Winner.combo.chainStageByUsage})`,
+  )
   console.log('Winning constants:')
-  console.log(JSON.stringify(stage2Winner.constants, null, 2))
-  if (stage2Winner.agreement < baselineAgreement) {
+  console.log(JSON.stringify(stage3Winner.constants, null, 2))
+  if (stage3Winner.agreement < baselineAgreement) {
     console.warn('WARNING: winning agreement is below baseline — grid found no improvement; keeping current constants.')
   }
 
