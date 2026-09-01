@@ -14,4 +14,12 @@
 
 ## Open tickets
 
+- [ ] **T25 — candidate usage floor: never build items the hero's players don't buy (user bug report 2026-09-01T20:45Z: Kelvin build includes Lightning Scroll, which is impossible to trigger on him and which almost nobody buys)**
+  - Root cause (orchestrator-verified in the committed data, do not re-derive): Lightning Scroll (id 493591231) has NO row at all in `analytics/hero-12.json` `item_stats` — zero recorded Kelvin matches. `scoreItem` feeds matches=0 into `dampedWinRate`, which shrinks fully to the hero MEAN win rate (0.555 for Kelvin), so an item nobody buys scores like an average-win-rate item; usage weight can't save it (T23's heavier win-rate profile amplified this), and the affinity clamp floor (0.5 → ×0.85) barely dents it.
+  - Fix in `src/generator/` (eligibility, not re-weighting): add `minUsageShare` to `ScoreConstants` (default 0.01). An item whose blended hero usage share (`usageRatio` from `blendHighBadgeStat`; 0 when there is no stats row) is below the floor is INELIGIBLE — filtered out before build assembly / the greedy pass, not merely down-scored. Leave `dampedWinRate` itself unchanged (its shrink-to-mean is correct for thin-but-real samples and is reused by `pairLift`).
+  - Starvation guard: measured on Kelvin, floor 0.01 keeps 89 of 156 items (0.02 keeps 78), so normal builds never starve; still, if any category/phase has fewer eligible items than slots, fill the remainder from below-floor items in the existing stable score order. Determinism and stable tie-breaks unchanged.
+  - Tests: (a) fixture — an item with no stats row never appears in a generated build; (b) below-floor item excluded, at-floor item eligible; (c) starvation fallback works; (d) roster sweep — generate builds for all 38 heroes from the real snapshots and assert every chosen item has hero usage share ≥ floor (or is a starvation fallback, which the sweep should find zero of).
+  - Report: re-run `src/validation/` and put the new Zergggy agreement number in PROGRESS.md next to the prior 48%. If it regresses below 46%, re-run `npm run tune` with the existing T23 grid and apply the argmax per the usual rules.
+  - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
+
 (queue empty — next fire should check ROADMAP.md's known gaps per PACE:full)

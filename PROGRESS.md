@@ -202,3 +202,9 @@
 - Build export format is explicitly conditional ("if the API documents one") and checking that requires API access this sandbox can't reach.
 - Situational/counter item swaps is a real feature but underspecified (enemy-selection UX, counter-item heuristic) — a product decision, not a bounded implementation task; self-assigning a large new UX surface without a written ticket risks the kind of scope drift the routine is meant to avoid.
 - Not halting the routine (USAGE-LOG WAIVER-style judgment call, not that rule itself) — just skipping this fire's further self-assignment. Next fire: re-check GOALS.md first as always; if still empty, this note stands until a human or the orchestrator adds a scoped ticket for one of these.
+
+## 2026-09-01T20:48Z — orchestrator: T25 queued (Kelvin/Lightning Scroll bug)
+- User report: Kelvin's build includes Lightning Scroll — impossible to trigger on him, almost nobody buys it.
+- Verified in data: Lightning Scroll (493591231) has ZERO rows in hero-12 item_stats, yet dampedWinRate(matches=0) shrinks to the hero mean WR (0.555), so unseen items score as average-win-rate items; T23's heavier win-rate profile amplified it.
+- Queued T25: `minUsageShare` eligibility floor (default 0.01) in ScoreConstants — below-floor items filtered out of assembly, starvation fallback, roster sweep test, re-report Zergggy agreement vs 48%.
+- Routine stays enabled; next cron fire 21:13Z picks it up (no eager fire — inside the 25-min window).
