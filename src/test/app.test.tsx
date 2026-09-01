@@ -1,10 +1,16 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import App from '../App'
+import ItemDetailSheet, { isMeaningfulStatLine } from '../components/ItemDetailSheet'
+import type { Item } from '../generator'
 
 const hasSnapshots = existsSync(join(process.cwd(), 'public/data/meta.json'))
+
+function readItems(): Item[] {
+  return JSON.parse(readFileSync(join(process.cwd(), 'public/data/items.json'), 'utf8'))
+}
 
 // T5 acceptance: boots the real <App/> against the committed snapshots.
 // Skip cleanly (same convention as generator.test.ts / snapshots.test.ts)
@@ -70,5 +76,70 @@ describe.skipIf(!hasSnapshots)('App', () => {
         expect(card.querySelector('.build-card__agreement')).toBeNull()
       }
     }
+  })
+})
+
+describe('isMeaningfulStatLine', () => {
+  it('hides zero-valued numbers and strings, including unit-suffixed ones', () => {
+    expect(isMeaningfulStatLine(0)).toBe(false)
+    expect(isMeaningfulStatLine('0')).toBe(false)
+    expect(isMeaningfulStatLine('0m')).toBe(false)
+  })
+
+  it('keeps nonzero numbers and unit-suffixed strings', () => {
+    expect(isMeaningfulStatLine(30)).toBe(true)
+    expect(isMeaningfulStatLine('-1.0')).toBe(true)
+    expect(isMeaningfulStatLine('7m')).toBe(true)
+  })
+
+  it('hides unparseable junk strings with no usable label', () => {
+    expect(isMeaningfulStatLine('asdasd')).toBe(false)
+  })
+
+  it('keeps a non-numeric display-metadata object with a usable label', () => {
+    expect(isMeaningfulStatLine({ label: 'Max Ammo', prefix: '{s:sign}' })).toBe(true)
+    expect(isMeaningfulStatLine({ label: '' })).toBe(false)
+  })
+})
+
+// T8 acceptance: real snapshot data, not hardcoded assumptions.
+describe.skipIf(!hasSnapshots)('ItemDetailSheet (real snapshot)', () => {
+  it('shows only nonzero stat lines for a real item mixing zero and nonzero values, keeps Cost/Tier/Slot', () => {
+    const items = readItems()
+    const item = items.find(
+      (candidate) =>
+        candidate.stat_lines.some((line) => !isMeaningfulStatLine(line.value)) &&
+        candidate.stat_lines.some((line) => isMeaningfulStatLine(line.value))
+    )
+    expect(item).toBeDefined()
+
+    render(<ItemDetailSheet item={item!} onClose={() => {}} />)
+
+    expect(screen.getByText('Cost')).toBeInTheDocument()
+    expect(screen.getByText('Tier')).toBeInTheDocument()
+    expect(screen.getByText('Slot')).toBeInTheDocument()
+    expect(screen.getByText('Stats')).toBeInTheDocument()
+
+    const hiddenKeys = item!.stat_lines.filter((line) => !isMeaningfulStatLine(line.value)).map((line) => line.key)
+    const shownKeys = item!.stat_lines.filter((line) => isMeaningfulStatLine(line.value)).map((line) => line.key)
+    const statList = document.querySelector('.item-detail-sheet__stats')!
+    for (const key of shownKeys) {
+      expect(within(statList as HTMLElement).getByText(key)).toBeInTheDocument()
+    }
+    for (const key of hiddenKeys) {
+      if (shownKeys.includes(key)) continue
+      expect(within(statList as HTMLElement).queryByText(key)).not.toBeInTheDocument()
+    }
+  })
+
+  it('hides the Stats section entirely when an item has no meaningful stat lines', () => {
+    const items = readItems()
+    const item = items.find((candidate) => candidate.stat_lines.every((line) => !isMeaningfulStatLine(line.value)))
+    // Only assert the behavior if the real snapshot actually has such an item.
+    if (!item) return
+
+    render(<ItemDetailSheet item={item} onClose={() => {}} />)
+    expect(screen.queryByText('Stats')).not.toBeInTheDocument()
+    expect(document.querySelector('.item-detail-sheet__stats')).toBeNull()
   })
 })

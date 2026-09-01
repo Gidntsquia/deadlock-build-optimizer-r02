@@ -13,12 +13,6 @@
 
 ## Open tickets
 
-- [ ] **T8 — item detail: show only meaningful stats (user request 2026-09-01)**
-  - Goal: the item detail sheet stops rendering "a bunch of unneeded 0's" — a stat line renders ONLY if it carries real information: numeric value ≠ 0, or a non-numeric display value with a usable label. Zero-valued lines and "—" placeholders are hidden. If every line is filtered out, hide the Stats section header too.
-  - Files: `src/components/ItemDetailSheet.tsx`, `src/test/app.test.tsx` (extend; a small pure helper + unit test is fine if you extract the filter).
-  - Acceptance: (1) a real item whose stat_lines include zero values shows only the nonzero ones (find one in the committed snapshot from the test, don't hardcode assumptions); (2) Cost/Tier/Slot rows unaffected; (3) an item with no meaningful lines shows no Stats section; (4) existing detail-sheet tests still pass.
-  - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e` (components changed; chromium is preinstalled at `/opt/pw-browsers/chromium`, config already points there).
-
 - [ ] **T9 — weight scoring toward high-elo players (user request 2026-09-01)**
   - Goal: the generator's win-rate and usage components prefer high-elo evidence. Data is ALREADY COMMITTED (orchestrator fetched it locally — do NOT attempt API calls): each `public/data/analytics/hero-N.json` now has `high_badge_item_stats` (same shape as `item_stats`: `{item_id, wins, matches}`) filtered to matches with average badge ≥ 81 (Phantom+; `high_badge_min` field + `meta.json.high_badge_min` record the cutoff). Infernus: 138 high-badge items vs 156 overall, ~1.15M item-match rows.
   - Spec: per item, when its high-badge sample is large enough (matches ≥ a documented MIN_SAMPLE constant, suggest 100), compute win-rate/usage from a blend weighted ≥70% toward the high-badge stats (suggest 0.75/0.25); below MIN_SAMPLE, fall back smoothly to overall stats (a sample-proportional blend is fine — document the exact formula in code + README). Keep the existing confidence damping (shrink-to-hero-mean K=50) applied AFTER blending. Determinism and stable tie-breaks unchanged.

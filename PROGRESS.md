@@ -1,5 +1,14 @@
 # PROGRESS — newest first, ≤25 lines per entry; past ~1,500 lines rotate all but newest ~10 entries verbatim to PROGRESS_ARCHIVE.md
 
+## 2026-09-01T17:17Z — T8 done: item detail hides zero-value stat lines
+- FOUND FIRST: this container's local `main` was 18 commits behind detached HEAD (same recurring class of issue as prior fires) — `git checkout main && git merge --ff-only <HEAD>`; turned out `origin/main` was already at that commit, only the local ref was stale, so nothing to push for that step.
+- Added `isMeaningfulStatLine(value)` to ItemDetailSheet.tsx: nonzero numbers/numeric strings kept; unit-suffixed strings like "7m" parsed via `parseFloat` (`Number("7m")` is NaN) so they're correctly kept when nonzero, hidden when "0m"; a real snapshot value of literally `"asdasd"` (junk, no label) is hidden; a display-metadata object (`{label,...}`, the known upstream gap where the numeric value is missing) is kept whenever its label is non-empty, since we can't know its zero-ness otherwise.
+- Wrapped the stats list in a new `.item-detail-sheet__stats-section` with an `<h3>Stats</h3>` heading (didn't exist before) — the whole section is omitted when zero lines pass the filter.
+- Verified against real data (not hardcoded): item 1548066885 "Extended Magazine" has 15 stat_lines, filter reduces it to the 5 real ones.
+- Tests added (src/test/app.test.tsx): 5 pure-function cases for the filter + 2 real-snapshot-backed ItemDetailSheet render tests (mixed zero/nonzero item shows only nonzero + Cost/Tier/Slot intact; an all-zero item, if one exists, hides the Stats section).
+- Verified: `npm run build` clean; `npx vitest run` 36 passed/2 skipped (was 30/2); `npm run gate:heldout` OK (UI-only change, generator untouched); `npx playwright test` 5/5 (existing e2e specs don't touch stat content — confirmed still green rather than assumed).
+- T8 archived to GOALS_ARCHIVE.md. Budget allowed only this one ticket this fire (fast-forward recovery + full e2e run ate the rest). Next: T9 (high-elo weighting) — data already committed, nothing blocking.
+
 ## 2026-09-01T16:55Z — orchestrator: project REOPENED — user requested T8/T9/T10, routine re-enabled
 - User asked for: (T8) item detail shows only meaningful stats, no zero rows; (T9) scoring weighted toward high-elo players; (T10) build display restyled like the in-game build browser (user supplied a reference screenshot — the T10 ticket text is the authoritative spec since fires can't see it).
 - T9 data prep done locally (orchestrator, same egress-workaround pattern as T2b): fetch-data.mjs now also pulls per-hero item-stats at `min_average_badge=81` (Phantom+ — measured: keeps 151/155 Infernus items & ~1.15M rows; Ascendant+ collapses to ~25k rows) into `high_badge_item_stats`; full snapshot refreshed and committed, public/data = 6.9MB.

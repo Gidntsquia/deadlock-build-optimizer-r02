@@ -16,6 +16,23 @@ function formatStatValue(value: unknown): string {
   return '—'
 }
 
+// A stat line carries real information only if it's a nonzero number (numeric
+// strings, and unit-suffixed ones like "7m", both parse via parseFloat) or a
+// non-numeric display-metadata object with a usable label. Everything else —
+// zero values, "0m", unparseable junk strings with no label — is noise the
+// item-detail sheet shouldn't show (see T8).
+export function isMeaningfulStatLine(value: unknown): boolean {
+  if (typeof value === 'number') return value !== 0
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value)
+    return Number.isFinite(parsed) && parsed !== 0
+  }
+  if (value && typeof value === 'object' && 'label' in value && typeof (value as { label: unknown }).label === 'string') {
+    return (value as { label: string }).label.trim() !== ''
+  }
+  return false
+}
+
 export default function ItemDetailSheet({ item, onClose }: ItemDetailSheetProps) {
   return (
     <div className="item-detail-overlay" onClick={onClose}>
@@ -47,16 +64,23 @@ export default function ItemDetailSheet({ item, onClose }: ItemDetailSheetProps)
         </dl>
         {item.active_description && <p className="item-detail-sheet__text">{item.active_description}</p>}
         {item.passive_description && <p className="item-detail-sheet__text">{item.passive_description}</p>}
-        {item.stat_lines.length > 0 && (
-          <ul className="item-detail-sheet__stats">
-            {item.stat_lines.map((line) => (
-              <li key={line.key}>
-                <span>{line.key}</span>
-                <span>{formatStatValue(line.value)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        {(() => {
+          const meaningfulLines = item.stat_lines.filter((line) => isMeaningfulStatLine(line.value))
+          if (meaningfulLines.length === 0) return null
+          return (
+            <div className="item-detail-sheet__stats-section">
+              <h3>Stats</h3>
+              <ul className="item-detail-sheet__stats">
+                {meaningfulLines.map((line) => (
+                  <li key={line.key}>
+                    <span>{line.key}</span>
+                    <span>{formatStatValue(line.value)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

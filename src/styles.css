@@ -284,9 +284,15 @@ h3 {
   line-height: 1.4;
 }
 
+.item-detail-sheet__stats-section h3 {
+  margin: 10px 0 4px;
+  font-size: 0.8rem;
+  color: #c9c9d4;
+}
+
 .item-detail-sheet__stats {
   list-style: none;
-  margin: 10px 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
