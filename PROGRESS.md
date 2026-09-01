@@ -195,3 +195,10 @@
 - README: composite formula shows the affinity multiplier; new T23 subsection; data-pipeline table's item/analytics rows updated (also fixed a stale 173→156 item count noticed in passing); validation section gained the self-agreement paragraph.
 - Verified: `npm run build` clean; `npx vitest run` 74 passed/2 skipped; `npm run gate:heldout` OK (double-checked no "Zergggy" landed in any score.ts comment); `npx playwright test` 10/10.
 - T23 archived to GOALS_ARCHIVE.md. GOALS.md's Open tickets queue is now empty — per PACE:full, next fire pulls from ROADMAP.md's known gaps.
+
+## 2026-09-01T20:34Z — GOALS.md queue empty, ROADMAP gaps all blocked/need product input
+- Checked ROADMAP.md's "known gaps" per PACE:full: PWA image caching already done (T24). Remaining four: per-hero archetype tuning beyond Infernus, situational/counter item swaps, validation against additional top players, build export format.
+- Per-hero tuning and additional-player validation both need real match data for heroes/players we don't have (SANDBOX EGRESS blocks live fetches; only Zergggy/Infernus and ctc/Drifter data exists) — tuning without ground truth would be arbitrary, against the project's data-driven premise.
+- Build export format is explicitly conditional ("if the API documents one") and checking that requires API access this sandbox can't reach.
+- Situational/counter item swaps is a real feature but underspecified (enemy-selection UX, counter-item heuristic) — a product decision, not a bounded implementation task; self-assigning a large new UX surface without a written ticket risks the kind of scope drift the routine is meant to avoid.
+- Not halting the routine (USAGE-LOG WAIVER-style judgment call, not that rule itself) — just skipping this fire's further self-assignment. Next fire: re-check GOALS.md first as always; if still empty, this note stands until a human or the orchestrator adds a scoped ticket for one of these.
