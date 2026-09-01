@@ -1,5 +1,15 @@
 # PROGRESS — newest first, ≤25 lines per entry; past ~1,500 lines rotate all but newest ~10 entries verbatim to PROGRESS_ARCHIVE.md
 
+## 2026-09-01T18:46Z — T12 done: app-wide design cohesion pass (queue now empty)
+- Whole pass is CSS-only — no JSX changes beyond `main.tsx`'s font imports. `.build-card` dropped its own solid background so the teal title bar + parchment/navy panels float on the abyss between them (DESIGN.md's actual framing) instead of sitting boxed inside a dark card.
+- Added 8 `:root` tokens beyond DESIGN.md's own table for surfaces the screenshots don't cover (hero select, banner, badges, overlay scrim) — same abyss-family palette, never white, still confined to `:root`.
+- Fonts: `@fontsource/baloo-2`/`@fontsource/nunito-sans` installed as devDeps (registry reachable — checked via `npm view` first), only `latin-*` weight files imported (English-only UI) — ~90KB added, zero external font-host references in the built output (verified).
+- Motion: CSS-only slide-up/backdrop-fade `@keyframes` for the detail sheet + `scale(1.03)` item-card hover; `prefers-reduced-motion: reduce` collapses all durations app-wide; new `:focus-visible` outline (previously none existed anywhere).
+- New `src/test/styles.test.ts` (4 tests) encodes T12's own acceptance criteria as regression checks: zero hex outside `:root`, reduced-motion query present, `@fontsource` (not external host) imports, focus-visible rule present.
+- Manual real-browser screenshots (temp spec, deleted) confirmed teal bar/floating panels/parchment detail sheet all render correctly at 390×844, no overflow.
+- Verified: `npm run build` clean (10 font files in output, zero external font URLs); `npx vitest run` 48 passed/2 skipped (was 44/2, +4 new); `npm run gate:heldout` OK; `npx playwright test` 5/5.
+- T12 archived to GOALS_ARCHIVE.md. **Queue (T13→T14→T10→T11→T12) is now fully done and archived** — GOALS.md's Open tickets section is empty. Next fire should check for newly-added tickets; nothing is currently blocked or pending.
+
 ## 2026-09-01T18:39Z — T11 done: "Ability Point Order" panel styled like in-game
 - New `AbilityOrderPanel` (navy panel, one row/ability with a 40px icon + khaki-fallback-letter tile) replaces the old plain step list. `Ability` type gained `image: string | null` (real URL, already committed).
 - Shared-column layout: `build.ability_order` (unlock steps 1-4, then 2 upgrade rounds) maps onto N identical CSS-grid columns across every row via `gridColumn: step.step` — markers only align vertically when spends are genuinely simultaneous, exactly like the game.

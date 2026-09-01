@@ -1,8 +1,10 @@
 /* Mobile-first: designed at 390x844. Desktop is a centered column. */
 
-/* DESIGN.md's in-game-look token system (T10). Fonts stay system fallbacks
-   until T12 vendors @fontsource/baloo-2 + nunito-sans; stacks already match
-   DESIGN.md's documented fallbacks so the T12 swap is additive only. */
+/* DESIGN.md's in-game-look token system (T10-T12). Every color anywhere in
+   this file lives here — nowhere else should a literal hex value appear
+   (T12 acceptance: grep `#[0-9a-f]` finds only this block). Fonts are now
+   vendored via @fontsource (main.tsx); stacks keep DESIGN.md's documented
+   fallbacks as the offline-safe default. */
 :root {
   --bg-abyss: #0c1712;
   --header-teal: #6ec9c4;
@@ -17,6 +19,18 @@
   --diamond-violet: #a05be8;
   --ink: #171310;
   --text-light: #f2ead8;
+  /* Not in DESIGN.md's core palette but needed for a few surfaces the
+     reference screenshots don't show (hero select, banner, desktop shell) —
+     kept in the abyss's near-black-green family, never white, and still
+     defined only here. */
+  --surface-dark: #182922;
+  --surface-dark-border: #2e4438;
+  --text-muted: #b7c9bd;
+  --badge-core-bg: #2f5d4c;
+  --badge-core-text: #b9f0d6;
+  --badge-not-core-bg: #3a4a42;
+  --badge-not-core-text: #c3d2ca;
+  --overlay-scrim: rgb(12 23 18 / 72%);
   --font-display: 'Baloo 2', 'Trebuchet MS', sans-serif;
   --font-body: 'Nunito Sans', system-ui, sans-serif;
 }
@@ -40,6 +54,20 @@ body {
   color: var(--text-light);
 }
 
+button,
+select,
+[tabindex] {
+  font-family: inherit;
+}
+
+/* DESIGN.md quality floor: visible keyboard focus, 2px teal outline. */
+button:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--header-teal);
+  outline-offset: 2px;
+}
+
 .app {
   max-width: 480px;
   margin: 0 auto;
@@ -48,6 +76,8 @@ body {
 }
 
 h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
   font-size: 1.3rem;
   margin: 8px 0 16px;
 }
@@ -61,7 +91,7 @@ h3 {
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #a8a8b3;
+  color: var(--text-muted);
   margin: 16px 0 8px;
 }
 
@@ -77,16 +107,16 @@ h3 {
   font-size: 16px;
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid #3a3a45;
-  background: #1e1e26;
+  border: 1px solid var(--surface-dark-border);
+  background: var(--surface-dark);
   color: inherit;
   width: 100%;
 }
 
 .personalization-banner {
   font-size: 0.85rem;
-  color: #c9c9d4;
-  background: #1e1e26;
+  color: var(--text-muted);
+  background: var(--surface-dark);
   border-radius: 8px;
   padding: 10px 12px;
   margin: 0 0 16px;
@@ -98,10 +128,11 @@ h3 {
   gap: 16px;
 }
 
+/* No card background of its own — the header bar and the parchment/navy
+   panels below are the visible surfaces, floating on the abyss between them
+   (DESIGN.md: "parchment panels floating on a near-black abyss"). */
 .build-card {
-  background: #1e1e26;
   border-radius: 12px;
-  padding: 14px;
   width: 100%;
 }
 
@@ -111,19 +142,31 @@ h3 {
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
+  background: var(--header-teal);
+  color: var(--ink);
+  padding: 14px;
+  border-radius: 12px 12px 0 0;
+}
+
+.build-card__header h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
 }
 
 .build-card__archetype {
   margin: -4px 0 0;
   width: 100%;
   font-size: 0.85rem;
-  color: #a0a0ad;
+  color: var(--ink);
+  opacity: 0.75;
 }
 
 .build-card__agreement {
   font-size: 0.8rem;
-  background: #2f5d4c;
-  color: #b9f0d6;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--badge-core-bg);
+  color: var(--badge-core-text);
   border-radius: 999px;
   padding: 4px 10px;
   white-space: nowrap;
@@ -133,11 +176,13 @@ h3 {
   background: var(--panel-parchment);
   border-radius: 12px;
   padding: 10px 10px 12px;
-  margin-top: 12px;
+  margin: 12px 14px 0;
 }
 
 .phase-panel__title {
   margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-weight: 700;
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -181,6 +226,12 @@ h3 {
   text-align: center;
   cursor: pointer;
   font-size: 0.75rem;
+  transition: transform 0.15s ease;
+}
+
+.item-row__button:hover,
+.item-row__button:active {
+  transform: scale(1.03);
 }
 
 .item-card__tile {
@@ -223,7 +274,8 @@ h3 {
   line-height: 1.3;
   text-align: center;
   color: var(--text-light);
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--ink);
+  opacity: 0.85;
   border-radius: 0 0 8px 0;
 }
 
@@ -248,12 +300,14 @@ h3 {
   white-space: nowrap;
   background: var(--badge-khaki);
   color: var(--ink);
+  font-weight: 600;
   border-radius: 4px;
   padding: 2px 4px;
 }
 
 .item-card__cost {
   color: var(--ink);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   opacity: 0.85;
 }
@@ -261,6 +315,7 @@ h3 {
 .item-row__running-total {
   flex: none;
   font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
   color: var(--ink);
   opacity: 0.7;
   white-space: nowrap;
@@ -275,25 +330,26 @@ h3 {
 }
 
 .badge--core {
-  background: #2f5d4c;
-  color: #b9f0d6;
+  background: var(--badge-core-bg);
+  color: var(--badge-core-text);
 }
 
 .badge--not-core {
-  background: #3a3a45;
-  color: #a8a8b3;
+  background: var(--badge-not-core-bg);
+  color: var(--badge-not-core-text);
 }
 
 .ability-order-panel {
   background: var(--panel-navy);
   border-radius: 12px;
   padding: 12px 10px;
-  margin-top: 12px;
+  margin: 12px 14px 14px;
 }
 
 .ability-order-panel__title {
   margin: 0 0 8px;
   font-family: var(--font-display);
+  font-weight: 700;
   font-size: 0.95rem;
   color: var(--text-light);
 }
@@ -352,6 +408,7 @@ h3 {
   height: 20px;
   font-size: 0.65rem;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .ability-order-panel__marker--unlock::before {
@@ -373,24 +430,49 @@ h3 {
 .item-detail-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--overlay-scrim);
   display: flex;
   align-items: flex-end;
   justify-content: center;
   padding: 0;
   z-index: 10;
+  animation: item-detail-overlay-fade 0.2s ease;
 }
 
+/* DESIGN.md's one orchestrated motion moment: the detail sheet slides up
+   over its backdrop fade. Nothing else in the app animates on mount. */
 .item-detail-sheet {
   position: relative;
-  background: #1e1e26;
-  color: inherit;
+  background: var(--panel-parchment);
+  color: var(--ink);
   width: 100%;
   max-width: 480px;
   max-height: 85vh;
   overflow-y: auto;
   border-radius: 16px 16px 0 0;
   padding: 20px 16px 32px;
+  animation: item-detail-sheet-slide-up 0.25s ease;
+}
+
+@keyframes item-detail-overlay-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes item-detail-sheet-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .item-detail-sheet__close {
@@ -401,8 +483,8 @@ h3 {
   min-height: 40px;
   border-radius: 50%;
   border: none;
-  background: #2a2a34;
-  color: inherit;
+  background: var(--panel-parchment-deep);
+  color: var(--ink);
   font-size: 1.1rem;
   cursor: pointer;
 }
@@ -431,7 +513,8 @@ h3 {
 .item-detail-sheet__meta dt {
   font-size: 0.7rem;
   text-transform: uppercase;
-  color: #a8a8b3;
+  color: var(--ink);
+  opacity: 0.65;
 }
 
 .item-detail-sheet__meta dd {
@@ -446,8 +529,13 @@ h3 {
 
 .item-detail-sheet__stats-section h3 {
   margin: 10px 0 4px;
+  font-family: var(--font-display);
+  font-weight: 700;
   font-size: 0.8rem;
-  color: #c9c9d4;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--ink);
+  opacity: 0.8;
 }
 
 .item-detail-sheet__stats {
@@ -458,7 +546,8 @@ h3 {
   flex-direction: column;
   gap: 4px;
   font-size: 0.78rem;
-  color: #c9c9d4;
+  color: var(--ink);
+  opacity: 0.85;
 }
 
 .item-detail-sheet__stats li {
@@ -470,17 +559,14 @@ h3 {
 .item-detail-sheet__stat--elevated {
   font-weight: 700;
   font-size: 1.05em;
-  color: #f0f0f6;
+  color: var(--ink);
+  opacity: 1;
 }
 
 @media (min-width: 481px) {
-  body {
-    background: #0b0b0e;
-  }
-
   .app {
     margin: 24px auto;
-    background: #14141a;
+    background: var(--surface-dark);
     border-radius: 16px;
     padding: 16px 16px 48px;
   }

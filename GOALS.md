@@ -14,10 +14,4 @@
 
 ## Open tickets
 
-- [ ] **T12 — app-wide design cohesion pass per DESIGN.md (user request 2026-09-01: "make the UI beautiful")**
-  - Goal: the ENTIRE app reads as one in-game artifact — not two game-styled panels inside a web dashboard. Apply DESIGN.md everywhere T10/T11 didn't touch: app background `--bg-abyss`; build header becomes the teal title bar (hero name + build name in display face, agreement chip riding it); HeroPicker, PersonalizationBanner, and ItemDetailSheet restyled with DESIGN.md tokens (detail sheet = parchment sheet, slide-up kept as the app's one orchestrated motion moment). No white surfaces anywhere.
-  - Typography: add `@fontsource/baloo-2` + `@fontsource/nunito-sans` (npm devDeps, bundled — runtime stays offline; log the additions in PROGRESS.md per the standing rule), wire the roles/weights and fallback stacks exactly as DESIGN.md specifies.
-  - Quality floor (DESIGN.md): `prefers-reduced-motion` respected, visible keyboard focus (2px teal outline), text contrast ≥4.5:1, 390×844 no page overflow, tap targets ≥40px.
-  - Files: `src/styles.css`, `src/App.tsx`, `src/components/{HeroPicker,PersonalizationBanner,ItemDetailSheet}.tsx`, `src/main.tsx` (font imports), `package.json`, tests/e2e as needed.
-  - Acceptance: (1) zero hardcoded colors outside the :root token block (grep `#[0-9a-f]` in styles.css finds only the token definitions); (2) fonts load offline from the bundle (build output contains the woff2 files; no external font URL anywhere); (3) reduced-motion media query present and kills transitions; (4) all suites green incl. e2e 5/5.
-  - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
+None currently — all tickets in this fire's queue (T13, T14, T10, T11, T12) are done and archived. The next ticket added to GOALS.md will be picked up by the next fire.

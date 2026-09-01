@@ -192,6 +192,36 @@ for items/heroes/analytics/personal matches; `src/validation/loadMatches.ts` for
 kept inside `src/validation/` for the same isolation reason as above) — no other runtime network
 calls except the item/hero image URLs the snapshots themselves store.
 
+### Design cohesion pass (T12)
+
+The build header is now a full-bleed teal title bar (`--header-teal`, `--ink` text, `Baloo 2` display
+face) sitting flush atop the buy-list panels — the `.build-card` itself carries no background of its
+own any more, so the parchment phase panels and navy ability panel visually float on the app's abyss
+background between them, matching DESIGN.md's "parchment panels floating on a near-black abyss"
+framing rather than reading as boxes-inside-a-box. `HeroPicker` and `PersonalizationBanner` moved off
+the old flat gray to a `--surface-dark` near-black-green surface (not in DESIGN.md's own table, since
+neither element appears in the reference screenshots — added as the same abyss-family palette, never
+white, and still confined to the `:root` token block). `ItemDetailSheet` is now a parchment sheet
+(`--panel-parchment`, `--ink` text) instead of a dark card, with its close button and "Active"/
+"Passive" section headings restyled to match (the latter also promoted to the `Baloo 2` display face,
+consistent with DESIGN.md's "panel headings" typography rule).
+
+Fonts are vendored via `@fontsource/baloo-2` (700/800) and `@fontsource/nunito-sans` (400/600/700) —
+npm devDeps, imported in `main.tsx` so Vite bundles the actual `.woff2`/`.woff` files into the build
+output; the runtime never fetches a font from `fonts.googleapis.com` or any other host, keeping the
+snapshot-only offline guarantee intact. JUDGMENT CALL: only the `latin-*` subset files are imported
+(not the full cyrillic/greek/vietnamese set each package ships) since the app's UI text is English-only
+— cuts the font payload to ~90 KB across 5 weight/family combinations instead of pulling every subset.
+
+Motion is deliberately restrained to DESIGN.md's "one orchestrated moment": the item detail sheet's
+slide-up plus its backdrop fade (`@keyframes`, CSS-only, no JS animation library), and a subtle
+`scale(1.03)` press/hover state on item cards. A `prefers-reduced-motion: reduce` media query collapses
+every transition/animation to near-zero duration app-wide. Keyboard focus is visible everywhere
+(`:focus-visible` → 2px `--header-teal` outline) instead of the browser default. `src/test/styles.test.ts`
+encodes T12's acceptance criteria as regression tests rather than one-off manual checks: zero hex colors
+outside the `:root` block, the reduced-motion query's presence, `@fontsource` imports (not an external
+font host) in `main.tsx`, and the focus-visible outline rule.
+
 ### Item detail tooltip (`stat_sections`, T14)
 
 `items.json`'s `stat_lines` is the item's full engine property bag (scoring input only, most keys
@@ -236,6 +266,10 @@ documented fallback rather than fabricated data:
   was pinned to `^3.x` (not the ticket's implicit `^2.x`) because `vitest@2` on `vite@6` pulled a
   duplicate nested `vite@5` that type-conflicted with the top-level `vite@6` — a dev-only fix, no
   runtime dependency change.
+- `@fontsource/baloo-2` and `@fontsource/nunito-sans` (T12) were added as npm devDeps — they only
+  supply static font files Vite bundles at build time (no runtime code), so the "zero runtime deps
+  beyond react/react-dom" rule (`GOALS.md`) is unaffected; only the `latin-*` subset per weight is
+  imported (see the design-cohesion section above).
 - This project's cloud sandbox cannot reach `api.deadlock-api.com` / `assets.deadlock-api.com` (org
   egress policy) — the real `fetch-data` run and the snapshot commit (`public/data/**`) were done
   once, locally, outside the sandbox; every other ticket built and tested against the committed
