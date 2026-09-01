@@ -13,13 +13,6 @@
 
 ## Open tickets
 
-- [ ] **T3 — Deterministic build generator** (needs T2b's committed snapshots for its tests; if `public/data/meta.json` is absent, skip to T4 — its tests are fixture-based)
-  Goal: src/generator/ produces ≥2 named builds for ANY active hero from aggregate snapshots only.
-  Files: src/generator/**, src/test/generator.test.ts, scripts/gate-heldout.mjs (real implementation).
-  Spec: a documented, deterministic scoring function (stable tie-breaks by item id). Inputs: items.json, heroes.json, analytics/hero-<id>.json, infernus-permutations.json when present — NEVER zergggy data. Score items on: win rate with confidence damping by sample size (shrink toward the hero mean), usage rate, stat value per soul, tier/soul thresholds by game phase (early/mid/late budgets), per-build archetype weight profiles derived from the hero's scaling stats in heroes.json (Infernus: gun/fire-rate archetype vs spirit/afterburn archetype), and an active/passive balance cap. Output per build: name, ordered buy list of ≥12 items grouped early/mid/late with per-item cost + running soul total, plus ability level-up sequence (unlock order + tier-upgrade order) for the hero's 4 real abilities driven by ability-order-stats (deterministic sensible fallback when a hero lacks data).
-  Acceptance: generator.test.ts asserts — two runs on the same snapshot are deep-equal; Infernus + ≥3 other heroes each yield ≥2 builds, ≥12 items, nondecreasing running totals, 4 named abilities; gate:heldout greps src/generator for "zergggy" (case-insensitive) and fails on any hit.
-  Verify: `npm test && npm run gate:heldout`
-
 - [ ] **T4 — Held-out validation + personalization**
   Goal: src/validation/ scores generated builds against Zergggy's core set; src/personalization/ computes one displayed insight.
   Files: src/validation/**, src/personalization/**, src/test/validation.test.ts.
