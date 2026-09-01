@@ -183,3 +183,15 @@
 - README's Ability Point Order paragraph rewritten; also corrected a stale claim left over from T11 ("◆5 never appears yet") — it does now, on heroes whose real T15 sequence reaches a 3rd upgrade.
 - Verified: `npm run build` clean; `npx vitest run` 62 passed/2 skipped (64 total, +1); `npm run gate:heldout` OK (6 files, UI-only); `npx playwright test` 10/10.
 - T21 archived to GOALS_ARCHIVE.md. GOALS.md's Open tickets queue now has just T23 (synergy+affinity retune) — continuing to it next in this same fire, per PACE:full.
+
+## 2026-09-01T20:31Z — T23 done: hero-affinity + pair-synergy scoring, expanded re-tune
+- `score.ts` gained `heroAffinityMultiplier` (clamp `[0.5,3]` of heroUsageShare/rosterUsageShare, wired into `scoreItem`'s return as a final multiplier) and `pairLift` (reuses `dampedWinRate`'s shrink-to-mean formula on rate-minus-mean, proven algebraically equivalent — 0 for unseen/statless pairs). Both gated by new `ScoreConstants` fields, default 0 = no-op.
+- `index.ts`'s `buildForArchetype` restructured from a single static-sorted fill into an incremental greedy loop (`runGreedyPass`), since the pair-synergy bonus depends on items already picked — rescans remaining candidates each pick, `effectiveScore = staticScore + pairSynergyBonus`, ties fall back to the original static order so `pairSynergyWeight=0` reproduces the old build exactly (verified by test).
+- `types.ts`: `Item.roster_usage_share`, new `ItemPairStat`, `HeroAnalytics.item_pair_stats` — pure passthrough, no loader changes needed.
+- `tune-generator.mjs` went two-stage (avoids a 2187-combo cross product): stage 1 = T19's grid + 2 new "heavier usage/win-rate" weight profiles (405 combos); stage 2 = affinityWeight×pairSynergyWeight on stage 1's winner (9 combos). 414 total, within the ~1500 bound.
+- Sweep result: baseline 46% → **48%** at `affinityWeight=0.3, pairSynergyWeight=0` (pair synergy found no improvement on top of affinity at any grid value; implemented and tunable, ships as a no-op). Applied to `DEFAULT_SCORE_CONSTANTS`.
+- Self-agreement ceiling (CONTEXT only, never fed to `src/generator/`): scored each of Zergggy's 30 own matches as a pseudo-build against the pooled core set/order prefs, averaged — **74.6%** (range 45–92% per match), via a throwaway harness (deleted, not committed).
+- Tests: new `heroAffinityMultiplier`/`pairLift` fixture suites + 2 `generateBuilds` pair-synergy-ordering tests (strong-pair-wins, weight-0-reproduces-static-order). Existing Item/HeroAnalytics fixtures updated with the two new required fields.
+- README: composite formula shows the affinity multiplier; new T23 subsection; data-pipeline table's item/analytics rows updated (also fixed a stale 173→156 item count noticed in passing); validation section gained the self-agreement paragraph.
+- Verified: `npm run build` clean; `npx vitest run` 74 passed/2 skipped; `npm run gate:heldout` OK (double-checked no "Zergggy" landed in any score.ts comment); `npx playwright test` 10/10.
+- T23 archived to GOALS_ARCHIVE.md. GOALS.md's Open tickets queue is now empty — per PACE:full, next fire pulls from ROADMAP.md's known gaps.
