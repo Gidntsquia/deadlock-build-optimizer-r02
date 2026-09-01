@@ -13,9 +13,4 @@
 
 ## Open tickets
 
-- [ ] **T7 — README + acceptance sweep**
-  Goal: README.md documenting everything; final walk of the acceptance checklist in ROADMAP.md.
-  Files: README.md.
-  Spec: run instructions (`npm install`, `npm run fetch-data`, `npm run dev`); scoring-function inputs and exact weights + determinism statement; the ≥30% win-weighted core-set rule with experiments excluded; held-out design (generator never reads Zergggy — grep gate); every judgment call so far (pull from PROGRESS.md Decisions); parked/unverified items.
-  Acceptance: README covers all of the above; all gates green; every box in ROADMAP.md's acceptance checklist verified or explicitly listed as failed/unverified — fix failures before checking this ticket.
-  Verify: `npm run build && npm test && npm run gate:heldout`
+(empty — T1–T7 all done as of 2026-09-01T10:29Z. Pull from ROADMAP.md's "known gaps / stretch" list for the next ticket, per the standing header instructions.)
