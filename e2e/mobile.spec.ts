@@ -4,9 +4,9 @@ import { expect, test } from '@playwright/test'
 const ASSET_HOST_GLOB = '**/assets-bucket.deadlock-api.com/**'
 
 test.describe('mobile viewport (390x844)', () => {
-  test('Infernus default screen has no horizontal overflow and shows >=2 builds', async ({ page }) => {
+  test('Infernus default screen has no horizontal overflow and shows exactly 1 build', async ({ page }) => {
     await page.goto('/')
-    await expect(page.locator('.build-card')).toHaveCount(2, { timeout: 15_000 })
+    await expect(page.locator('.build-card')).toHaveCount(1, { timeout: 15_000 })
 
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -31,7 +31,7 @@ test.describe('mobile viewport (390x844)', () => {
     await expect(select.locator('option')).not.toHaveCount(0)
     const otherValue = await select.locator('option').nth(1).getAttribute('value')
     await select.selectOption(otherValue!)
-    await expect(page.locator('.build-card')).toHaveCount(2, { timeout: 15_000 })
+    await expect(page.locator('.build-card')).toHaveCount(1, { timeout: 15_000 })
 
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -41,7 +41,7 @@ test.describe('mobile viewport (390x844)', () => {
 
   test('key tap targets are >=40px in both dimensions', async ({ page }) => {
     await page.goto('/')
-    await expect(page.locator('.build-card')).toHaveCount(2, { timeout: 15_000 })
+    await expect(page.locator('.build-card')).toHaveCount(1, { timeout: 15_000 })
 
     const selectBox = await page.locator('#hero-select').boundingBox()
     expect(selectBox?.height).toBeGreaterThanOrEqual(40)
@@ -65,7 +65,7 @@ test.describe('offline resilience', () => {
     page.on('pageerror', (err) => pageErrors.push(err.message))
 
     await page.goto('/')
-    await expect(page.locator('.build-card')).toHaveCount(2, { timeout: 15_000 })
+    await expect(page.locator('.build-card')).toHaveCount(1, { timeout: 15_000 })
     await page.locator('.item-row__button').first().click()
     await expect(page.getByRole('dialog')).toBeVisible()
 

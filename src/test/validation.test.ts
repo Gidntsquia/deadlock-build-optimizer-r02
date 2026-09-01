@@ -134,7 +134,7 @@ describe.skipIf(!hasSnapshots)('agreement scoring (real snapshot)', () => {
     const analytics = readJson<import('../generator').HeroAnalytics>('analytics', `hero-${infernus.id}.json`)
     const zergMatches = readJson<ZergMatch[]>('zergggy', 'matches.json')
 
-    const [build] = generateBuilds(infernus, items, analytics)
+    const build = generateBuilds(infernus, items, analytics)
     const coreSet = computeCoreSet(zergMatches)
     const orderPreferences = buildOrderPreferences(zergMatches, new Set(coreSet.items.keys()))
     const report = validateBuild(build, coreSet, orderPreferences)

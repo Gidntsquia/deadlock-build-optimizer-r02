@@ -16,17 +16,17 @@ function readItems(): Item[] {
 // Skip cleanly (same convention as generator.test.ts / snapshots.test.ts)
 // when snapshots aren't present, rather than fail.
 describe.skipIf(!hasSnapshots)('App', () => {
-  it('shows Infernus by default with >=2 builds of >=12 items, badges, and agreement %', async () => {
+  it('shows Infernus by default with exactly 1 build of >=12 items, badges, and agreement %', async () => {
     render(<App />)
 
     const heroSelect = await screen.findByLabelText<HTMLSelectElement>(/hero/i)
     expect(heroSelect.value).toBe('1') // Infernus hero id
 
     const agreementBadges = await screen.findAllByText(/% agreement/)
-    expect(agreementBadges.length).toBeGreaterThanOrEqual(2)
+    expect(agreementBadges.length).toBe(1)
 
     const buildCards = document.querySelectorAll('.build-card')
-    expect(buildCards.length).toBeGreaterThanOrEqual(2)
+    expect(buildCards.length).toBe(1)
     for (const card of Array.from(buildCards)) {
       const itemRows = card.querySelectorAll('.item-row')
       expect(itemRows.length).toBeGreaterThanOrEqual(12)
@@ -67,7 +67,7 @@ describe.skipIf(!hasSnapshots)('App', () => {
       await screen.findAllByRole('heading', { level: 2, name: new RegExp(`^${heroName} `) })
 
       const buildCards = document.querySelectorAll('.build-card')
-      expect(buildCards.length).toBeGreaterThanOrEqual(2)
+      expect(buildCards.length).toBe(1)
       for (const card of Array.from(buildCards)) {
         expect(card.querySelectorAll('.item-row').length).toBeGreaterThanOrEqual(12)
         expect(card.querySelectorAll('.ability-order__step').length).toBeGreaterThan(0)

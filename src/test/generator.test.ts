@@ -2,8 +2,8 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { generateBuilds } from '../generator'
-import type { Hero, HeroAnalytics, Item } from '../generator'
+import { generateBuilds, pickBestBuild } from '../generator'
+import type { Build, Hero, HeroAnalytics, Item, ScoredCandidate } from '../generator'
 import { HIGH_BADGE_MIN_SAMPLE, HIGH_BADGE_WEIGHT, blendHighBadgeStat, dampedWinRate, highBadgeBlendWeight, scoreItem } from '../generator/score'
 
 const DATA_DIR = join(process.cwd(), 'public/data')
@@ -37,33 +37,29 @@ describe.skipIf(!hasSnapshots)('generator', () => {
 
   const sampleHeroNames = ['Infernus', 'Seven', 'Vindicta', 'Lady Geist']
 
-  it.each(sampleHeroNames)('generates >=2 valid builds for %s', (name) => {
+  it.each(sampleHeroNames)('generates exactly 1 valid build for %s', (name) => {
     const hero = heroByName(name)
     const analytics = analyticsByHero.get(hero.id)!
-    const builds = generateBuilds(hero, items, analytics)
+    const build = generateBuilds(hero, items, analytics)
 
-    expect(builds.length).toBeGreaterThanOrEqual(2)
+    expect(build.name).toContain(hero.name)
+    expect(build.items.length).toBeGreaterThanOrEqual(12)
 
-    for (const build of builds) {
-      expect(build.name).toContain(hero.name)
-      expect(build.items.length).toBeGreaterThanOrEqual(12)
+    let previousTotal = 0
+    const seenIds = new Set<number>()
+    for (const entry of build.items) {
+      expect(entry.running_total).toBeGreaterThanOrEqual(previousTotal)
+      expect(entry.cost).toBeGreaterThan(0)
+      expect(seenIds.has(entry.item_id)).toBe(false)
+      seenIds.add(entry.item_id)
+      previousTotal = entry.running_total
+    }
 
-      let previousTotal = 0
-      const seenIds = new Set<number>()
-      for (const entry of build.items) {
-        expect(entry.running_total).toBeGreaterThanOrEqual(previousTotal)
-        expect(entry.cost).toBeGreaterThan(0)
-        expect(seenIds.has(entry.item_id)).toBe(false)
-        seenIds.add(entry.item_id)
-        previousTotal = entry.running_total
-      }
-
-      expect(build.ability_order.length).toBeGreaterThan(0)
-      const namedAbilityIds = new Set(build.ability_order.map((step) => step.ability_id))
-      expect(namedAbilityIds.size).toBe(4)
-      for (const step of build.ability_order) {
-        expect(step.ability_name).toBeTruthy()
-      }
+    expect(build.ability_order.length).toBeGreaterThan(0)
+    const namedAbilityIds = new Set(build.ability_order.map((step) => step.ability_id))
+    expect(namedAbilityIds.size).toBe(4)
+    for (const step of build.ability_order) {
+      expect(step.ability_name).toBeTruthy()
     }
   })
 
@@ -71,15 +67,13 @@ describe.skipIf(!hasSnapshots)('generator', () => {
     for (const name of sampleHeroNames) {
       const hero = heroByName(name)
       const analytics = analyticsByHero.get(hero.id)!
-      const builds = generateBuilds(hero, items, analytics)
+      const build = generateBuilds(hero, items, analytics)
       const itemById = new Map(items.map((i) => [i.id, i]))
-      for (const build of builds) {
-        const activeCount = build.items.filter((entry) => {
-          const item = itemById.get(entry.item_id)!
-          return item.stat_lines.some((s) => s.key === 'AbilityCooldown' && Number(s.value) !== 0)
-        }).length
-        expect(activeCount).toBeLessThanOrEqual(2)
-      }
+      const activeCount = build.items.filter((entry) => {
+        const item = itemById.get(entry.item_id)!
+        return item.stat_lines.some((s) => s.key === 'AbilityCooldown' && Number(s.value) !== 0)
+      }).length
+      expect(activeCount).toBeLessThanOrEqual(2)
     }
   })
 
@@ -165,5 +159,32 @@ describe('scoreItem high-elo blend', () => {
     const damped = dampedWinRate(0.9, 1, meanWinRate) // 1 effective match, near-mean K=50 damping
     expect(damped).toBeGreaterThan(meanWinRate)
     expect(damped).toBeLessThan(0.6)
+  })
+})
+
+// T13: single-build pick. Pure fixtures over pickBestBuild, not snapshot-dependent.
+describe('pickBestBuild', () => {
+  function candidate(archetype: 'weapon' | 'spirit', totalScore: number, itemIds: number[]): ScoredCandidate {
+    const build: Build = {
+      name: 'Fixture Build',
+      archetype,
+      items: itemIds.map((id, i) => ({ item_id: id, phase: 'early', cost: 100, running_total: 100 * (i + 1) })),
+      ability_order: [],
+    }
+    return { archetype, totalScore, build }
+  }
+
+  it('the candidate with the higher total score wins', () => {
+    const weaker = candidate('weapon', 5, [10, 20])
+    const stronger = candidate('spirit', 7, [30, 40])
+    expect(pickBestBuild([weaker, stronger])).toBe(stronger.build)
+    expect(pickBestBuild([stronger, weaker])).toBe(stronger.build)
+  })
+
+  it('ties break by ascending archetype name', () => {
+    const weapon = candidate('weapon', 5, [10, 20])
+    const spirit = candidate('spirit', 5, [10, 20])
+    expect(pickBestBuild([weapon, spirit])).toBe(spirit.build) // 'spirit' < 'weapon'
+    expect(pickBestBuild([spirit, weapon])).toBe(spirit.build)
   })
 })

@@ -1,5 +1,13 @@
 # PROGRESS — newest first, ≤25 lines per entry; past ~1,500 lines rotate all but newest ~10 entries verbatim to PROGRESS_ARCHIVE.md
 
+## 2026-09-01T18:18Z — T13 done: single recommended build per hero
+- `generateBuilds` now returns one `Build` instead of `Build[]`. `buildForArchetype` computes both weapon/spirit candidates as before, each now paired with a `totalScore` (sum of its selected items' already-computed composite scores). New `pickBestBuild(candidates)` (pure, exported) picks the higher `totalScore`, ties broken by ascending archetype name then the build's own item-id sequence — generator-internal only, never consults validation/agreement output (held-out rule respected throughout).
+- Build.name is now `"<Hero> Build"` (was `"<Hero> Weapon/Spirit Build"`); `BuildCard` shows the winning archetype as a `.build-card__archetype` subtitle ("Weapon build"/"Spirit build"). App.tsx's `builds`/`Map<string, ValidationReport>` state collapsed to `build`/single `ValidationReport | null` (still calls unchanged `validateBuildsAgainstHeldOut([generated])`).
+- Updated: generator.test.ts (">=2 builds" → "exactly 1 build"; new `pickBestBuild` fixture tests — higher score wins order-independent; tie breaks to 'spirit'), app.test.tsx + e2e/mobile.spec.ts (`.build-card` count 2→1), validation.test.ts (array destructure → plain assignment), README (generator + UI sections rewritten for the internal-2/exported-1 shape).
+- CAUGHT BY OWN GATE: a draft doc comment in index.ts used the literal word the held-out gate greps for — `gate:heldout` correctly failed the build; reworded, no functional issue. Left as a demonstration the gate works.
+- Verified: `npm run build` clean; `npx vitest run` 41 passed/2 skipped (was 39/2); `npm run gate:heldout` OK (5 files, zero held-out references); `npx playwright test` 5/5. `node_modules` was missing at fire start (fresh container) — ran `npm ci` first.
+- T13 archived to GOALS_ARCHIVE.md. Queue was T13 → T14 → T10 → T11 → T12; next up is T14 (stat_sections tooltip rendering) — data already committed, nothing blocking.
+
 ## 2026-09-01T18:06Z — orchestrator: FULL-SPEED mode (user request, budget healthy)
 - User: "Make things go faster; we're well under the usage limit." Decision log:
 - Tried routine cron `13,43 * * * *` → API rejects sub-1h intervals ("cron interval too short"). Routine stays hourly at :13 (that's the platform floor, not a choice).

@@ -53,11 +53,16 @@ Pure function of three snapshot inputs (`heroes.json`, `items.json`,
 `src/generator` never tunes its weights against the held-out agreement score either — a low score
 is a finding about the generator, not something to chase.
 
-For each hero it produces two builds — a **Weapon** build and a **Spirit** build — by scoring every
-item and greedily filling early/mid/late buy-phase quotas (4/4/5 items, tier bands
-800/1600/3200/6400/9999 souls → early/early/mid/late/late) by score, backfilling to a 12-item floor
-if a phase runs short, and capping at 2 activated-ability items per build (`AbilityCooldown != 0`,
-the only per-item activation signal in this snapshot). The composite item score:
+For each hero it internally builds two candidates — a **Weapon**-leaning build and a
+**Spirit**-leaning build — by scoring every item and greedily filling early/mid/late buy-phase
+quotas (4/4/5 items, tier bands 800/1600/3200/6400/9999 souls → early/early/mid/late/late) by score,
+backfilling to a 12-item floor if a phase runs short, and capping at 2 activated-ability items per
+build (`AbilityCooldown != 0`, the only per-item activation signal in this snapshot). It then exports
+only the single higher-scoring candidate (`pickBestBuild`, T13): each candidate's total score is the
+sum of its selected items' composite scores; ties break on ascending archetype name, then on the
+build's item-id sequence. The pick is generator-internal only — it never consults held-out Zergggy
+agreement (that would be tuning to the held-out set); the UI still shows the exported build's
+agreement % as before, purely as a display metric. The composite item score:
 
 ```
 score = 0.35 * confidenceDampedWinRate   (shrink the BLENDED win rate below toward the hero's mean
@@ -148,9 +153,10 @@ a banner meant to contextualize the late-game budget in the build below it.
 
 ## UI (`src/App.tsx`, `src/components/**`)
 
-Mobile-first at 390×844: a hero `<select>` (Infernus default), each build as a card with its buy
-list grouped early/mid/late (item image, name, cost, running soul total, core/not-core badge when a
-validation report exists), an ability level-up order list, and the personalization banner. Tapping
+Mobile-first at 390×844: a hero `<select>` (Infernus default), the single recommended build (T13) as
+a card — winning archetype shown as a subtitle (e.g. "Spirit build") — with its buy list grouped
+early/mid/late (item image, name, cost, running soul total, core/not-core badge when a validation
+report exists), an ability level-up order list, and the personalization banner. Tapping
 any item opens a bottom-sheet detail card (image, cost, tier, slot type, stat lines). No horizontal
 scroll at 390px; every tappable element (hero select, item rows, the detail sheet's close button)
 is ≥40px in its constrained dimension. Desktop is just the same layout centered in a ~480px column.

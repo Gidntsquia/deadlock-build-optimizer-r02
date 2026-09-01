@@ -20,6 +20,32 @@ const MIN_TOTAL_ITEMS = 12
 // statUtils.isActiveItem) so it isn't dominated by actives on a limited cooldown.
 const ACTIVE_ITEM_CAP = 2
 
+export interface ScoredCandidate {
+  archetype: Archetype
+  totalScore: number
+  build: Build
+}
+
+// Picks the single best build across archetype candidates: highest total
+// composite score wins, ties broken by ascending archetype name then by
+// ascending item ids (lexicographic over the build's item-id sequence) so
+// the pick is fully deterministic. Uses ONLY the candidates' own scores —
+// never the held-out agreement score (see HELD-OUT RULE in GOALS.md T13).
+export function pickBestBuild(candidates: ScoredCandidate[]): Build {
+  const sorted = [...candidates].sort((a, b) => {
+    if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore
+    if (a.archetype !== b.archetype) return a.archetype < b.archetype ? -1 : 1
+    const aIds = a.build.items.map((entry) => entry.item_id)
+    const bIds = b.build.items.map((entry) => entry.item_id)
+    const len = Math.min(aIds.length, bIds.length)
+    for (let i = 0; i < len; i++) {
+      if (aIds[i] !== bIds[i]) return aIds[i] - bIds[i]
+    }
+    return aIds.length - bIds.length
+  })
+  return sorted[0].build
+}
+
 function buildForArchetype(
   hero: Hero,
   items: Item[],
@@ -30,7 +56,7 @@ function buildForArchetype(
   maxHighMatches: number,
   maxValuePerSoul: number,
   archetype: Archetype,
-): Build {
+): { build: Build; totalScore: number } {
   const scored = items
     .map((item) => {
       const stat = itemStatsById.get(item.id)
@@ -89,21 +115,26 @@ function buildForArchetype(
     return { item_id: item.id, phase: tierPhase(item.item_tier), cost: item.cost, running_total: runningTotal }
   })
 
-  const archetypeLabel = archetype === 'weapon' ? 'Weapon' : 'Spirit'
-  return {
-    name: `${hero.name} ${archetypeLabel} Build`,
+  const scoreById = new Map(scored.map(({ item, score }) => [item.id, score]))
+  const totalScore = orderedItems.reduce((sum, item) => sum + (scoreById.get(item.id) ?? 0), 0)
+
+  const build: Build = {
+    name: `${hero.name} Build`,
     archetype,
     items: buildItems,
     ability_order: buildAbilityOrder(hero.abilities),
   }
+  return { build, totalScore }
 }
 
 // Deterministic build generator: pure function of the three snapshot inputs
 // (no randomness, no clock reads), so identical inputs always produce a deep-
-// equal result. Produces one build per archetype (weapon-leaning and
-// spirit-leaning) — see score.ts for the per-item scoring formula and
-// abilityOrder.ts for the level-up sequence fallback.
-export function generateBuilds(hero: Hero, items: Item[], analytics: HeroAnalytics): Build[] {
+// equal result. Builds one candidate per archetype (weapon-leaning and
+// spirit-leaning — see score.ts for the per-item scoring formula and
+// abilityOrder.ts for the level-up sequence fallback) and exports only the
+// single highest-scoring one (see pickBestBuild) — the app shows exactly one
+// recommended build per hero (T13).
+export function generateBuilds(hero: Hero, items: Item[], analytics: HeroAnalytics): Build {
   const itemStatsById = new Map(analytics.item_stats.map((s) => [s.item_id, s]))
   const highBadgeStatsById = new Map(analytics.high_badge_item_stats.map((s) => [s.item_id, s]))
   const meanWinRate = heroMeanWinRate(analytics)
@@ -111,8 +142,8 @@ export function generateBuilds(hero: Hero, items: Item[], analytics: HeroAnalyti
   const maxHighMatches = maxHighBadgeItemMatches(analytics)
   const maxValuePerSoul = items.reduce((max, item) => Math.max(max, statValuePerSoul(item)), 0)
 
-  return (['weapon', 'spirit'] as const).map((archetype) =>
-    buildForArchetype(
+  const candidates: ScoredCandidate[] = (['weapon', 'spirit'] as const).map((archetype) => {
+    const { build, totalScore } = buildForArchetype(
       hero,
       items,
       itemStatsById,
@@ -122,6 +153,9 @@ export function generateBuilds(hero: Hero, items: Item[], analytics: HeroAnalyti
       maxHighMatches,
       maxValuePerSoul,
       archetype,
-    ),
-  )
+    )
+    return { archetype, totalScore, build }
+  })
+
+  return pickBestBuild(candidates)
 }

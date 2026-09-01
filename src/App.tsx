@@ -22,9 +22,9 @@ function App() {
   const [insight, setInsight] = useState<DurationInsight | null>(null)
 
   const [selectedHeroId, setSelectedHeroId] = useState<number | null>(null)
-  const [builds, setBuilds] = useState<Build[] | null>(null)
+  const [build, setBuild] = useState<Build | null>(null)
   const [buildState, setBuildState] = useState<LoadState>('loading')
-  const [validation, setValidation] = useState<Map<string, ValidationReport> | null>(null)
+  const [validation, setValidation] = useState<ValidationReport | null>(null)
 
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null)
 
@@ -61,15 +61,15 @@ function App() {
       .then((analytics) => {
         if (cancelled) return
         const generated = generateBuilds(hero, items, analytics)
-        setBuilds(generated)
+        setBuild(generated)
         setBuildState('ready')
         if (hero.id === INFERNUS_HERO_ID) {
-          validateBuildsAgainstHeldOut(generated)
-            .then((report) => {
-              if (!cancelled) setValidation(report)
+          validateBuildsAgainstHeldOut([generated])
+            .then((reports) => {
+              if (!cancelled) setValidation(reports.get(generated.name) ?? null)
             })
             .catch(() => {
-              // Validation is best-effort UI polish; builds still render without it.
+              // Validation is best-effort UI polish; the build still renders without it.
             })
         }
       })
@@ -108,17 +108,9 @@ function App() {
           )}
           {buildState === 'loading' && <p>Loading builds…</p>}
 
-          {buildState === 'ready' && builds && itemsById.size > 0 && (
+          {buildState === 'ready' && build && itemsById.size > 0 && (
             <div className="build-list">
-              {builds.map((build) => (
-                <BuildCard
-                  key={build.name}
-                  build={build}
-                  itemsById={itemsById}
-                  validation={validation?.get(build.name) ?? null}
-                  onSelectItem={setSelectedItemId}
-                />
-              ))}
+              <BuildCard build={build} itemsById={itemsById} validation={validation} onSelectItem={setSelectedItemId} />
             </div>
           )}
         </>

@@ -97,6 +97,13 @@ h3 {
   flex-wrap: wrap;
 }
 
+.build-card__archetype {
+  margin: -4px 0 0;
+  width: 100%;
+  font-size: 0.85rem;
+  color: #a0a0ad;
+}
+
 .build-card__agreement {
   font-size: 0.8rem;
   background: #2f5d4c;

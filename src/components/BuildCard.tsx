@@ -12,6 +12,7 @@ interface BuildCardProps {
 
 const PHASES: BuildPhase[] = ['early', 'mid', 'late']
 const PHASE_LABELS: Record<BuildPhase, string> = { early: 'Early game', mid: 'Mid game', late: 'Late game' }
+const ARCHETYPE_LABELS: Record<Build['archetype'], string> = { weapon: 'Weapon build', spirit: 'Spirit build' }
 
 export default function BuildCard({ build, itemsById, validation, onSelectItem }: BuildCardProps) {
   const coreByItemId = new Map(validation?.items.map((flag) => [flag.item_id, flag.core]) ?? [])
@@ -20,6 +21,7 @@ export default function BuildCard({ build, itemsById, validation, onSelectItem }
     <section className="build-card">
       <header className="build-card__header">
         <h2>{build.name}</h2>
+        <p className="build-card__archetype">{ARCHETYPE_LABELS[build.archetype]}</p>
         {validation && <span className="build-card__agreement">{validation.agreement_percent}% agreement</span>}
       </header>
 
