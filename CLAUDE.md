@@ -7,10 +7,11 @@ Commands: `npm run dev` · `npm run build` · `npm test` (vitest/jsdom) · `npm 
 ## Repo map (keep truthful when structure changes)
 - `DESIGN.md` — authoritative design tokens/type/motion for the in-game-style UI (T10–T12)
 - `scripts/fetch-data.mjs` — snapshot pipeline, writes `public/data/`
-- `scripts/gate-heldout.mjs` — fails if `src/generator/` references zergggy
+- `scripts/gate-heldout.mjs` — fails if `src/generator/` references zergggy or heldout-ctc
 - `scripts/log-usage.sh` — token-usage Stop hook (experiment infra; NEVER modify), logs to `.usage-log/`
 - `public/data/` — committed JSON snapshots, the app's ONLY runtime data source
-  - `zergggy/` — held-out validation data: ONLY `src/validation/` may read it
+  - `zergggy/` — TUNING data (Zergggy/Infernus): ONLY `src/validation/` may read it
+  - `heldout-ctc/` — HELD-OUT test data (ctc/Drifter): ONLY `src/validation/` may read it; never tune toward it
 - `src/generator/` — deterministic build scoring (no zergggy access, ever)
 - `src/validation/` — Zergggy core-set + agreement scoring
 - `src/components/` — UI components

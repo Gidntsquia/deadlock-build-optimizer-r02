@@ -47,6 +47,12 @@
 - Verified: `npm run build` clean; `npx vitest run` 41 passed/2 skipped (was 39/2); `npm run gate:heldout` OK (5 files, zero held-out references); `npx playwright test` 5/5. `node_modules` was missing at fire start (fresh container) — ran `npm ci` first.
 - T13 archived to GOALS_ARCHIVE.md. Queue was T13 → T14 → T10 → T11 → T12; next up is T14 (stat_sections tooltip rendering) — data already committed, nothing blocking.
 
+## 2026-09-01T19:30Z — orchestrator: experiment redesign — Zergggy becomes tuning set, ctc/Drifter new held-out; queue T19/T20
+- User: tune the algorithm toward Zergggy agreement, then test closeness to another top player's main. Sound design: Zergggy graduates to tuning set, a fresh player is the held-out test.
+- Held-out pick (logged): "ctc", NA leaderboard rank 2, account 1294549649 (resolved from possible_account_ids by match volume), main Drifter (hero 64, 60 of last 200 matches). Fetched their 30 most recent Drifter matches with purchases (avg 15.8 shop buys/match) → `public/data/heldout-ctc/matches.json` (committed).
+- fetch-data.mjs: zergggy block generalized to `fetchPlayerHeroMatches(accountId, heroId)`, called for both players. gate-heldout.mjs needle now `/zergggy|heldout[-_]?ctc/i`. GOALS header HELD-OUT RULE rewritten; CLAUDE.md + ROADMAP updated to the new design.
+- Verified: `npm run build` clean · `npm test` 48 passed/2 skipped · `npm run gate:heldout` OK.
+- Queue after current bug tickets: T19 (bounded deterministic sweep of scoring constants, argmax Zergggy agreement, winner applied as plain numbers) → T20 (ctc core-set + Drifter agreement chip, reported once as a finding, never tuned toward).
 ## 2026-09-01T18:58Z — orchestrator: 5 user reports → pipeline fixes + queue T15/T16/T18/T17
 - User reported: (a) same ability order on every hero, (b) wrong item pictures, (c) impossible Infernus build (Extra Spirit after Improved Spirit; fake item "upgrade_stabilizing_tripod"), (d) remove the top personal-insight block, (e) desktop should fill a Mac viewport.
 - Root causes found live (orchestrator egress): ability sequences live in field `abilities` (we guessed wrong names → all-null → global round-robin fallback); shop art is `shop_image_webp` not `image_webp`; catalog kept 78 disabled/non-shopable items; `component_items` upgrade chains were never captured.

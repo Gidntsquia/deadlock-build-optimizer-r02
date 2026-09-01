@@ -12,6 +12,12 @@ const API_BASE = 'https://api.deadlock-api.com'
 const OUT_DIR = 'public/data'
 const PERSONAL_ACCOUNT_ID = 267836488
 const ZERGGGY_ACCOUNT_ID = 35187362
+// New HELD-OUT player (user redesign 2026-09-01: Zergggy becomes the tuning set,
+// this player is the untouched test set): "ctc", NA leaderboard rank 2, account
+// resolved from possible_account_ids by match volume; main = Drifter (hero 64,
+// 60 of their last 200 matches).
+const HELDOUT_CTC_ACCOUNT_ID = 1294549649
+const HELDOUT_CTC_HERO_ID = 64
 const INFERNUS_HERO_ID = 1
 // High-elo cutoff for the weighted analytics snapshot: badge 81 = Phantom I
 // (badge = tier*10 + subtier, 0-116). Measured 2026-09-01: Phantom+ keeps
@@ -257,6 +263,7 @@ async function main() {
   mkdirSync(join(OUT_DIR, 'analytics'), { recursive: true })
   mkdirSync(join(OUT_DIR, 'personal'), { recursive: true })
   mkdirSync(join(OUT_DIR, 'zergggy'), { recursive: true })
+  mkdirSync(join(OUT_DIR, 'heldout-ctc'), { recursive: true })
 
   console.log('fetch-data: items')
   const rawItems = await fetchJson(`${ASSETS_BASE}/v2/items/by-type/upgrade`)
@@ -306,37 +313,46 @@ async function main() {
   const personalMatches = rawPersonalMatches.filter(isStandardMatch).map(prunePersonalMatch)
   writeFileSync(join(OUT_DIR, 'personal', 'matches.json'), JSON.stringify(personalMatches))
 
-  console.log('fetch-data: zergggy validation matches (Infernus)')
-  const rawZergMatches = await fetchJson(`${API_BASE}/v1/players/${ZERGGGY_ACCOUNT_ID}/match-history`)
-  const zergCandidates = rawZergMatches
-    .filter(isRealMatch)
-    .filter((row) => firstDefined(row, ['hero_id']) === INFERNUS_HERO_ID)
-    .sort((a, b) => firstDefined(b, ['start_time']) - firstDefined(a, ['start_time']))
-    .slice(0, 30)
+  async function fetchPlayerHeroMatches(accountId, heroId) {
+    const rawMatches = await fetchJson(`${API_BASE}/v1/players/${accountId}/match-history`)
+    const candidates = rawMatches
+      .filter(isRealMatch)
+      .filter((row) => firstDefined(row, ['hero_id']) === heroId)
+      .sort((a, b) => firstDefined(b, ['start_time']) - firstDefined(a, ['start_time']))
+      .slice(0, 30)
 
-  const zergMatches = []
-  for (const row of zergCandidates) {
-    const matchId = firstDefined(row, ['match_id'])
-    const metadata = await fetchJson(`${API_BASE}/v1/matches/${matchId}/metadata`)
-    const players = metadata.players ?? metadata.match_info?.players ?? []
-    const player = players.find((p) => firstDefined(p, ['account_id']) === ZERGGGY_ACCOUNT_ID)
-    const purchaseLog = player?.item_purchases ?? player?.items ?? []
-    // The log also records ability-point spends; keep only shop (upgrade) items.
-    const purchases = purchaseLog
-      .map((p) => ({
-        item_id: firstDefined(p, ['item_id']),
-        game_time_s: firstDefined(p, ['game_time_s', 'time', 'game_time']),
-      }))
-      .filter((p) => shopItemIds.has(p.item_id))
-    if (purchases.length > 0) {
-      zergMatches.push({
-        match_id: matchId,
-        won: matchWon(row),
-        purchases,
-      })
+    const matches = []
+    for (const row of candidates) {
+      const matchId = firstDefined(row, ['match_id'])
+      const metadata = await fetchJson(`${API_BASE}/v1/matches/${matchId}/metadata`)
+      const players = metadata.players ?? metadata.match_info?.players ?? []
+      const player = players.find((p) => firstDefined(p, ['account_id']) === accountId)
+      const purchaseLog = player?.item_purchases ?? player?.items ?? []
+      // The log also records ability-point spends; keep only shop (upgrade) items.
+      const purchases = purchaseLog
+        .map((p) => ({
+          item_id: firstDefined(p, ['item_id']),
+          game_time_s: firstDefined(p, ['game_time_s', 'time', 'game_time']),
+        }))
+        .filter((p) => shopItemIds.has(p.item_id))
+      if (purchases.length > 0) {
+        matches.push({
+          match_id: matchId,
+          won: matchWon(row),
+          purchases,
+        })
+      }
     }
+    return matches
   }
+
+  console.log('fetch-data: zergggy tuning matches (Infernus)')
+  const zergMatches = await fetchPlayerHeroMatches(ZERGGGY_ACCOUNT_ID, INFERNUS_HERO_ID)
   writeFileSync(join(OUT_DIR, 'zergggy', 'matches.json'), JSON.stringify(zergMatches))
+
+  console.log('fetch-data: heldout-ctc validation matches (Drifter)')
+  const ctcMatches = await fetchPlayerHeroMatches(HELDOUT_CTC_ACCOUNT_ID, HELDOUT_CTC_HERO_ID)
+  writeFileSync(join(OUT_DIR, 'heldout-ctc', 'matches.json'), JSON.stringify(ctcMatches))
 
   const meta = {
     fetched_at: new Date().toISOString(),
@@ -347,6 +363,7 @@ async function main() {
       analytics_heroes: heroes.length,
       personal_matches: personalMatches.length,
       zergggy_matches: zergMatches.length,
+      heldout_ctc_matches: ctcMatches.length,
     },
   }
   writeFileSync(join(OUT_DIR, 'meta.json'), JSON.stringify(meta))
