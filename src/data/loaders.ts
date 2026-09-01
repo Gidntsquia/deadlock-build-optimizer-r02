@@ -4,7 +4,7 @@ import type { Hero, HeroAnalytics, Item } from '../generator'
 import type { PersonalMatch } from '../personalization'
 
 async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(`/data/${path}`)
+  const response = await fetch(`${import.meta.env.BASE_URL}data/${path}`)
   if (!response.ok) throw new Error(`fetch failed for /data/${path}: ${response.status}`)
   return (await response.json()) as T
 }

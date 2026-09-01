@@ -3,7 +3,7 @@
 import type { ZergMatch } from './types'
 
 export function fetchZergMatches(): Promise<ZergMatch[]> {
-  return fetch('/data/zergggy/matches.json').then((response) => {
+  return fetch(`${import.meta.env.BASE_URL}data/zergggy/matches.json`).then((response) => {
     if (!response.ok) throw new Error(`fetch failed for zergggy matches: ${response.status}`)
     return response.json() as Promise<ZergMatch[]>
   })
