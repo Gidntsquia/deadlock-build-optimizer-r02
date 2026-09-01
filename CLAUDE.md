@@ -5,6 +5,7 @@ Stack: React 18 + Vite + TypeScript. Static frontend + one Node data script — 
 Commands: `npm run dev` · `npm run build` · `npm test` (vitest/jsdom) · `npm run test:e2e` (Playwright, needs `npm run build` first — see `playwright.config.ts`) · `npm run fetch-data` · `npm run gate:heldout`
 
 ## Repo map (keep truthful when structure changes)
+- `DESIGN.md` — authoritative design tokens/type/motion for the in-game-style UI (T10–T12)
 - `scripts/fetch-data.mjs` — snapshot pipeline, writes `public/data/`
 - `scripts/gate-heldout.mjs` — fails if `src/generator/` references zergggy
 - `scripts/log-usage.sh` — token-usage Stop hook (experiment infra; NEVER modify), logs to `.usage-log/`

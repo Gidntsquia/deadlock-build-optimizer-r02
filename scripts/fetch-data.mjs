@@ -94,7 +94,11 @@ function pruneHero(hero, abilityByClass) {
   const abilities = [1, 2, 3, 4].map((n) => {
     const className = hero.items?.[`signature${n}`]
     const ability = abilityByClass.get(className)
-    return { id: ability?.id ?? className, name: ability?.name ?? className }
+    return {
+      id: ability?.id ?? className,
+      name: ability?.name ?? className,
+      image: ability ? pickImage(ability) : null,
+    }
   })
   return {
     id: hero.id,

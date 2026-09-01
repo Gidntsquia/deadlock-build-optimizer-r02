@@ -6,6 +6,12 @@
 - Verified locally after refresh: `npm run build` clean, `npm test` 30 passed/2 skipped, `npm run gate:heldout` OK.
 - Routine re-enabled + backstop re-armed (see board). Next fire: T8 (smallest) or T9 — snapshots are committed so nothing is blocked.
 
+## 2026-09-01T17:08Z — orchestrator: T11 (ability-order panel) + T12 (design cohesion) queued; DESIGN.md added
+- User supplied a 2nd reference screenshot (in-game "Ability Point Order" timeline) and asked for an app-wide beautification pass. Ticket text is the authoritative spec for fires (they can't see images); user confirmed the ◆1/◆2/◆5 badges are upgrade steps (AP cost per upgrade tier).
+- DESIGN.md created: full token system (parchment/abyss/navy palette, slot colors, Baloo 2 + Nunito Sans via @fontsource, motion + quality floor) distilled from both screenshots — T10/T11/T12 all defer to it.
+- heroes.json abilities now carry `image` URLs (orchestrator refetched locally, same egress pattern; all 38×4 resolved). CLAUDE.md repo map updated for DESIGN.md.
+- Queue order: T8 → T9 → T10 → T11 → T12.
+
 ## 2026-09-01T16:35Z — orchestrator: deployed to GitHub Pages (user request, post-delivery)
 - Live at https://gidntsquia.github.io/deadlock-build-optimizer-r02/ — verified index 200, `data/meta.json` 200, JS bundle 200, gates re-run green before push.
 - Changes (commit 97619da): `base: './'` in vite.config.ts, loaders + validation fetch via `import.meta.env.BASE_URL`, `.github/workflows/pages.yml` (builds on push to main + manual dispatch).
