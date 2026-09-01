@@ -108,3 +108,11 @@
 - Had to reword one code comment (said "Zergggy") — `gate:heldout`'s regex scans comments too, not just code references.
 - Verified: `npm run build` clean; `npx vitest run` 55 passed/2 skipped (57 total); `npm run gate:heldout` OK (5 files); `npx playwright test` 5/5.
 - T15 archived to GOALS_ARCHIVE.md, committed+pushed (215ddf5). Budget allowed only this one ticket this fire (fresh `npm ci` + full e2e run ate the rest). Next: T16 (remove personalization block) or T18 (buyable-build chain rules) — both unblocked, data committed.
+
+## 2026-09-01T19:23Z — T16 done: personal-insight banner removed
+- Confirmed `PersonalizationBanner` (App.tsx top-of-page) was the sole consumer of `src/personalization/` — no per-build/per-item annotation used it elsewhere — so deleted the whole module + component + its test file, and the now-orphaned `loadPersonalMatches`/`PersonalMatch` from `src/data/loaders.ts`, plus the dead `.personalization-banner` CSS rule.
+- `public/data/personal/matches.json` + fetch-data.mjs left untouched per the ticket (orchestrator-owned); README's data-table row reworded to note it's fetched-but-unused rather than deleting the row, since the file still exists.
+- README's "Personalization" section removed; CLAUDE.md repo-map line removed.
+- Added a regression assertion to app.test.tsx's existing "shows Infernus by default" test (`.personalization-banner` querySelector is null) rather than relying only on the implicit compile-time guarantee.
+- Verified: `npm run build` clean (47 modules, was 49); `npx vitest run` 51 passed/2 skipped (53 total, was 55/2/57 — net -4 personalization unit tests, +1 new assertion); `npm run gate:heldout` OK; `npx playwright test` 5/5.
+- T16 archived to GOALS_ARCHIVE.md, committed+pushed (eeb8935). Budget still healthy — continuing to T18 (buyable-build chain rules) next in this same fire, per PACE:full.
