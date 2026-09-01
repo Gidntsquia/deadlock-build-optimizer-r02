@@ -13,6 +13,11 @@ const OUT_DIR = 'public/data'
 const PERSONAL_ACCOUNT_ID = 267836488
 const ZERGGGY_ACCOUNT_ID = 35187362
 const INFERNUS_HERO_ID = 1
+// High-elo cutoff for the weighted analytics snapshot: badge 81 = Phantom I
+// (badge = tier*10 + subtier, 0-116). Measured 2026-09-01: Phantom+ keeps
+// 151/155 Infernus items with ~1.15M item-match rows; Ascendant+ (101)
+// collapses to 88 items / ~25k rows — too thin.
+const HIGH_BADGE_MIN = 81
 const REQUEST_GAP_MS = 300
 const RETRY_AFTER_429_MS = 5000
 
@@ -175,10 +180,15 @@ async function main() {
   console.log(`fetch-data: analytics for ${heroes.length} heroes`)
   for (const hero of heroes) {
     const rawItemStats = await fetchJson(`${API_BASE}/v1/analytics/item-stats?hero_id=${hero.id}`)
+    const rawHighBadgeItemStats = await fetchJson(
+      `${API_BASE}/v1/analytics/item-stats?hero_id=${hero.id}&min_average_badge=${HIGH_BADGE_MIN}`,
+    )
     const rawAbilityOrderStats = await fetchJson(`${API_BASE}/v1/analytics/ability-order-stats?hero_id=${hero.id}`)
     const analytics = {
       hero_id: hero.id,
       item_stats: rawItemStats.map(pruneItemStat),
+      high_badge_min: HIGH_BADGE_MIN,
+      high_badge_item_stats: rawHighBadgeItemStats.map(pruneItemStat),
       ability_order_stats: rawAbilityOrderStats.map(pruneAbilityOrderStat),
     }
     writeFileSync(join(OUT_DIR, 'analytics', `hero-${hero.id}.json`), JSON.stringify(analytics))
@@ -230,6 +240,7 @@ async function main() {
 
   const meta = {
     fetched_at: new Date().toISOString(),
+    high_badge_min: HIGH_BADGE_MIN,
     counts: {
       items: items.length,
       heroes: heroes.length,
