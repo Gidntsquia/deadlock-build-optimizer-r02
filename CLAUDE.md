@@ -2,7 +2,7 @@
 
 Stack: React 18 + Vite + TypeScript. Static frontend + one Node data script — no backend, no DB, no auth, no paid services. Node ≥20 (built-in fetch).
 
-Commands: `npm run dev` · `npm run build` · `npm test` (vitest/jsdom) · `npm run fetch-data` · `npm run gate:heldout`
+Commands: `npm run dev` · `npm run build` · `npm test` (vitest/jsdom) · `npm run test:e2e` (Playwright, needs `npm run build` first — see `playwright.config.ts`) · `npm run fetch-data` · `npm run gate:heldout`
 
 ## Repo map (keep truthful when structure changes)
 - `scripts/fetch-data.mjs` — snapshot pipeline, writes `public/data/`
@@ -16,7 +16,7 @@ Commands: `npm run dev` · `npm run build` · `npm test` (vitest/jsdom) · `npm 
 - `src/components/` — UI components
 - `src/data/` — runtime snapshot loaders (`fetch('/data/**')`); no zergggy access, ever
 - `src/test/` — vitest suites
-- `e2e/` — Playwright specs (if present)
+- `e2e/` — Playwright specs; real-browser 390×844 layout/tap-target checks against `npm run preview` (`npm run test:e2e`)
 
 ## Conventions
 - Mobile-first: design at 390×844, tap targets ≥40 px, desktop is just a centered column.

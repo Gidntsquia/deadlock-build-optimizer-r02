@@ -13,12 +13,6 @@
 
 ## Open tickets
 
-- [ ] **T6 — Real-browser verification pass**
-  Goal: verify what jsdom structurally can't see.
-  Files: e2e/** (Playwright) or documented audit in PROGRESS.md.
-  Spec: try installing Playwright + chromium in this sandbox. If it installs: at 390×844 assert no horizontal overflow (scrollWidth ≤ 390) on the main screen, an open detail card, and a non-Infernus hero; spot-check tap-target boxes ≥40 px. If browsers can't install, do a targeted CSS audit (fixed widths, overflow-x) and record "unverified in real browser" honestly. Also: production `npm run build` + preview smoke — app must not crash with network disabled (item images may 404; that's acceptable offline).
-  Verify: `npx playwright test` if installed, else the documented audit; `npm run build`
-
 - [ ] **T7 — README + acceptance sweep**
   Goal: README.md documenting everything; final walk of the acceptance checklist in ROADMAP.md.
   Files: README.md.

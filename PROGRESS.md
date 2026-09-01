@@ -1,5 +1,12 @@
 # PROGRESS — newest first, ≤25 lines per entry; past ~1,500 lines rotate all but newest ~10 entries verbatim to PROGRESS_ARCHIVE.md
 
+## 2026-09-01T10:24Z — T6 done: real-browser verification (same fire as T5, budget allowed a 2nd ticket)
+- Chromium IS pre-installed in this cloud sandbox at `/opt/pw-browsers/chromium` (per the environment's operating notes) — Playwright actually ran, no fallback CSS audit needed. `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install -D @playwright/test` (no browser re-download); playwright.config.ts points `launchOptions.executablePath` at the pre-installed binary, runs against `npm run preview` (production build) at 390×844. New script: `npm run test:e2e`.
+- e2e/mobile.spec.ts, 5/5 passing against the real build: no horizontal overflow (Infernus default, detail card open, non-Infernus hero); hero-select/item-row/close-button tap targets all ≥40px; app boots + opens a detail card with the item-image host blocked and zero `pageerror` events (404 images acceptable).
+- BUG FOUND (by `npm test`, not the e2e suite): vitest's default glob also picked up e2e/mobile.spec.ts, colliding with Playwright's own `test.describe` global — fixed with `test.exclude: ['**/node_modules/**', 'e2e/**']` in vite.config.ts.
+- Verified: `npm run build` clean; `npx playwright test` 5/5 real-browser passes; `npm test` 30 passed/2 skipped; `npm run gate:heldout` OK. Playwright's local run artifacts (`test-results/`, `playwright-report/`) gitignored, not committed.
+- T6 archived to GOALS_ARCHIVE.md. Next: T7 (README + acceptance sweep) — the last open ticket.
+
 ## 2026-09-01T10:21Z — T5 done: mobile-first interactive UI
 - FOUND FIRST: container's local `main` was detached/stale again (behind origin by 8 commits, same recurring class of issue as prior fires) — `git fetch origin && git checkout main && git merge --ff-only origin/main`, clean fast-forward, no data lost.
 - Built src/App.tsx + src/components/{HeroPicker,BuildCard,ItemRow,ItemDetailSheet,PersonalizationBanner}.tsx + src/styles.css. src/data/loaders.ts fetches items/heroes/analytics/personal-matches from `/data/**`; src/validation/loadMatches.ts + new `validateBuildsAgainstHeldOut()` (validation/index.ts) keep the zergggy fetch inside src/validation/ so App.tsx never mentions it — grep confirms isolation holds. Validation runs only for Infernus (src/constants.ts).
