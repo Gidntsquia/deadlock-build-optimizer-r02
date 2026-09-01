@@ -1,5 +1,10 @@
 # PROGRESS — newest first, ≤25 lines per entry; past ~1,500 lines rotate all but newest ~10 entries verbatim to PROGRESS_ARCHIVE.md
 
+## 2026-09-01T18:06Z — orchestrator: FULL-SPEED mode (user request, budget healthy)
+- User: "Make things go faster; we're well under the usage limit." Decision log:
+- Tried routine cron `13,43 * * * *` → API rejects sub-1h intervals ("cron interval too short"). Routine stays hourly at :13 (that's the platform floor, not a choice).
+- Speed levers instead: (1) PACE: full added to GOALS.md header — fires keep taking tickets in the same run instead of one-per-fire; (2) session backstop retimed from every 2h to `33,44 * * * *` with eager-dispatch: fire an extra run the moment the previous one finishes (never within 25 min of the next :13 tick). Effective throughput ≈2 fires/hour.
+- This supersedes the default 2h tick cadence per explicit user authorization; revert to `48 */2 * * *` + drop PACE line if budget tightens.
 ## 2026-09-01T17:45Z — orchestrator: T14 queued (ghost stats bug) + stat_sections/is_active_item in snapshots
 - User bug report: item sheet shows engine-internal "ghost stats" (AbilityUnitTargetLimit, ChannelMoveSpeed, …). Root cause: stat_lines is the raw property bag; the game only displays keys named in tooltip_sections.
 - fetch-data.mjs now emits `stat_sections` per item (game's own display definition: per-section labeled stats with prefix/postfix, elevated flags, plain-text descriptions stripped of HTML/SVG) + `is_active_item` (real flag; also closes the old null-descriptions gap). stat_lines UNCHANGED — still the scoring input, so generator behavior is unperturbed. Snapshots refetched + committed, 7.0MB.
