@@ -14,6 +14,8 @@ import {
   dampedWinRate,
   heroAffinityMultiplier,
   highBadgeBlendWeight,
+  maxHighBadgeItemMatches,
+  maxItemMatches,
   pairLift,
   scoreItem,
 } from '../generator/score'
@@ -158,6 +160,51 @@ describe.skipIf(!hasSnapshots)('generator', () => {
     const group = chainGroups.get(spiritChain.id)!
     const pickedFromChain = [...group].filter((id) => pickedIds.has(id))
     expect(pickedFromChain.length).toBeLessThanOrEqual(1)
+  })
+
+  // T25 (d): roster sweep — every chosen item on every hero's real build must
+  // clear the usage-share eligibility floor, or be a genuine starvation
+  // fallback pick. The ticket predicted zero fallbacks from a single-hero
+  // (Kelvin) estimate, but the full sweep found 5 real ones (one late-tier
+  // item each on Abrams/Kelvin/Mo & Krill/Shiv/Sinclair, all the same item —
+  // Siphon Bullets — whose usage ratio is diluted by that hero's own
+  // max-item-match outlier, not a "nobody buys it" case: verified by hand
+  // that its raw matches are in the hundreds and its late-tier eligible pool
+  // is thinned by upgrade-chain exclusivity from earlier picks). This test
+  // pins that real count with an upper bound (guards against the floor or
+  // the fallback regressing to starve far more broadly) and, more
+  // importantly, proves the exact T25 bug (a zero-match item slipping into a
+  // build) can never happen even via the fallback.
+  it('roster sweep: every below-floor pick is a genuine, bounded starvation fallback — never a zero-match item', () => {
+    let starvationFallbacks = 0
+
+    for (const hero of heroes) {
+      const analytics = analyticsByHero.get(hero.id)!
+      const build = generateBuilds(hero, items, analytics)
+
+      const catalogIds = new Set(items.map((item) => item.id))
+      const itemStatsById = new Map(analytics.item_stats.filter((s) => catalogIds.has(s.item_id)).map((s) => [s.item_id, s]))
+      const highBadgeStatsById = new Map(analytics.high_badge_item_stats.filter((s) => catalogIds.has(s.item_id)).map((s) => [s.item_id, s]))
+      const maxMatches = maxItemMatches(analytics)
+      const maxHighMatches = maxHighBadgeItemMatches(analytics)
+
+      for (const entry of build.items) {
+        const stat = itemStatsById.get(entry.item_id)
+        const highStat = highBadgeStatsById.get(entry.item_id)
+        const { usageRatio } = blendHighBadgeStat(
+          { wins: stat?.wins ?? null, matches: stat?.matches ?? null },
+          { wins: highStat?.wins ?? null, matches: highStat?.matches ?? null },
+          maxMatches,
+          maxHighMatches,
+        )
+        if (usageRatio >= DEFAULT_SCORE_CONSTANTS.minUsageShare) continue
+        starvationFallbacks++
+        // The T25 bug case, verbatim: an item with NO stats row (or a real
+        // row with 0 matches) must never reach a build, fallback or not.
+        expect(stat?.matches ?? 0).toBeGreaterThan(0)
+      }
+    }
+    expect(starvationFallbacks).toBeLessThanOrEqual(10)
   })
 })
 
@@ -637,5 +684,132 @@ describe('generateBuilds: upgrade-chain exclusivity (T18)', () => {
     const earlyIds = build.items.filter((entry) => entry.phase === 'early').map((entry) => entry.item_id)
 
     expect(earlyIds).toEqual([200, 202, 203, 204]) // 201 dropped (chain-mate of 200), 204 refills
+  })
+})
+
+describe('generateBuilds: usage-share eligibility floor (T25)', () => {
+  function fixtureItem(id: number, tier: number): Item {
+    return {
+      id,
+      class_name: 'fixture_item',
+      name: `Item ${id}`,
+      components: [],
+      cost: tier * 1000,
+      item_tier: tier,
+      item_slot_type: 'vitality',
+      image: null,
+      stat_lines: [],
+      stat_sections: [],
+      is_active_item: false,
+      active_description: null,
+      passive_description: null,
+      roster_usage_share: null,
+    }
+  }
+
+  const hero: Hero = {
+    id: 997,
+    name: 'Usage Floor Fixture Hero',
+    image: null,
+    base_stats: {},
+    stat_growth: {},
+    abilities: [
+      { id: 1, name: 'A', image: null },
+      { id: 2, name: 'B', image: null },
+      { id: 3, name: 'C', image: null },
+      { id: 4, name: 'D', image: null },
+    ],
+  }
+
+  function analyticsFrom(statRows: Array<[number, number, number]>): HeroAnalytics {
+    // [item_id, wins, matches] — an id simply absent from this list gets no
+    // item_stats row at all (the Lightning Scroll case: zero recorded matches).
+    return {
+      hero_id: hero.id,
+      item_stats: statRows.map(([item_id, wins, matches]) => ({ item_id, wins, matches })),
+      high_badge_min: 81,
+      high_badge_item_stats: [],
+      ability_order_stats: [],
+      high_badge_ability_order_stats: [],
+      item_pair_stats: [],
+    }
+  }
+
+  it('(a) an item with no stats row at all never appears in the generated build', () => {
+    const earlyFillers = [100, 101, 102, 103].map((id) => fixtureItem(id, 1)) // quota-filling, ratio 500/500=1.0
+    const noRowItem = fixtureItem(104, 1) // no item_stats row -> usageRatio 0, excluded
+    const mid = [200, 201, 202, 203].map((id) => fixtureItem(id, 3))
+    const late = [300, 301, 302, 303, 304].map((id) => fixtureItem(id, 4))
+    const items = [...earlyFillers, noRowItem, ...mid, ...late]
+
+    const analytics = analyticsFrom([
+      ...earlyFillers.map((item): [number, number, number] => [item.id, 250, 500]),
+      // noRowItem (104) deliberately omitted
+      ...mid.map((item): [number, number, number] => [item.id, 200, 400]),
+      ...late.map((item): [number, number, number] => [item.id, 150, 300]),
+    ])
+
+    const build = generateBuilds(hero, items, analytics)
+    const pickedIds = new Set(build.items.map((entry) => entry.item_id))
+    expect(pickedIds.has(104)).toBe(false)
+    // Quota exactly matched by the eligible pool (13 items, >= MIN_TOTAL_ITEMS
+    // 12), so the starvation fallback never triggers — confirms 104 is
+    // excluded by the floor itself, not just left out by chance.
+    expect(build.items.length).toBe(13)
+  })
+
+  it('(b) below-floor item excluded, at-floor item eligible', () => {
+    // maxItemMatches across the whole hero is 10000 (the mid anchor below),
+    // so the floor (0.01) lands exactly at 100 matches.
+    const anchor = fixtureItem(210, 3)
+    const midFillers = [211, 212, 213].map((id) => fixtureItem(id, 3))
+    const late = [310, 311, 312, 313, 314].map((id) => fixtureItem(id, 4))
+    const atFloor = fixtureItem(110, 1) // 100/10000 = 0.01, not < floor -> eligible
+    const belowFloor = fixtureItem(111, 1) // 99/10000 = 0.0099 < floor -> excluded
+    const earlyFillers = [112, 113, 114].map((id) => fixtureItem(id, 1))
+    const items = [atFloor, belowFloor, ...earlyFillers, anchor, ...midFillers, ...late]
+
+    const analytics = analyticsFrom([
+      [anchor.id, 5000, 10000],
+      ...midFillers.map((item): [number, number, number] => [item.id, 150, 300]),
+      ...late.map((item): [number, number, number] => [item.id, 150, 300]),
+      [atFloor.id, 100, 100],
+      [belowFloor.id, 99, 99],
+      ...earlyFillers.map((item): [number, number, number] => [item.id, 40, 200]),
+    ])
+
+    const build = generateBuilds(hero, items, analytics)
+    const earlyIds = new Set(build.items.filter((e) => e.phase === 'early').map((e) => e.item_id))
+    // Exactly 4 early items clear the floor (atFloor + the 3 fillers) and the
+    // early quota is 4, so this also proves belowFloor can't be picked even
+    // though it would otherwise be competitive on win rate.
+    expect(earlyIds).toEqual(new Set([110, 112, 113, 114]))
+    expect(earlyIds.has(111)).toBe(false)
+  })
+
+  it('(c) starvation fallback: a phase short on eligible items backfills below-floor ones in stable score order', () => {
+    const midAnchor = fixtureItem(220, 3) // sets maxItemMatches = 5000
+    const midFillers = [221, 222, 223].map((id) => fixtureItem(id, 3))
+    const late = [320, 321, 322, 323, 324].map((id) => fixtureItem(id, 4))
+    const eligibleEarly = [120, 121].map((id) => fixtureItem(id, 1)) // 300/5000 = 0.06, eligible
+    // identical stats -> identical score -> tie-break is ascending item id
+    const belowFloorEarly = [122, 123, 124].map((id) => fixtureItem(id, 1)) // 25/5000 = 0.005, below floor
+    const items = [...eligibleEarly, ...belowFloorEarly, midAnchor, ...midFillers, ...late]
+
+    const analytics = analyticsFrom([
+      [midAnchor.id, 2500, 5000],
+      ...midFillers.map((item): [number, number, number] => [item.id, 400, 800]),
+      ...late.map((item): [number, number, number] => [item.id, 400, 800]),
+      ...eligibleEarly.map((item): [number, number, number] => [item.id, 150, 300]),
+      ...belowFloorEarly.map((item): [number, number, number] => [item.id, 12, 25]),
+    ])
+
+    const build = generateBuilds(hero, items, analytics)
+    const earlyIds = build.items.filter((e) => e.phase === 'early').map((e) => e.item_id)
+    // Only 2 items clear the floor, but the early quota is 4 — the
+    // starvation fallback must fill the other 2 slots from the tied
+    // below-floor pool, lowest id first (124 loses out).
+    expect(new Set(earlyIds)).toEqual(new Set([120, 121, 122, 123]))
+    expect(earlyIds).toHaveLength(4)
   })
 })

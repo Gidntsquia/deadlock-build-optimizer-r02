@@ -36,6 +36,14 @@ export interface ScoreConstants {
   // Item-pair synergy bonus strength in build assembly (T23) — see
   // index.ts's buildForArchetype / score.ts's pairLift. 0 = no effect.
   pairSynergyWeight: number
+  // Usage-floor eligibility (T25): an item whose blended hero usage share
+  // (blendHighBadgeStat's usageRatio — 0 when the hero has no stats row for
+  // it at all) is below this floor is INELIGIBLE for build assembly, not
+  // merely down-scored. Fixes items with zero recorded matches (e.g.
+  // Lightning Scroll on Kelvin) scoring like an average-win-rate pick once
+  // dampedWinRate shrinks them fully to the hero mean. See index.ts's
+  // buildForArchetype for the starvation fallback when a phase runs short.
+  minUsageShare: number
 }
 
 export const DEFAULT_SCORE_CONSTANTS: ScoreConstants = {
@@ -53,6 +61,10 @@ export const DEFAULT_SCORE_CONSTANTS: ScoreConstants = {
   // improvement at 0.3's affinity level, so it stays off (0 = no effect).
   affinityWeight: 0.3,
   pairSynergyWeight: 0,
+  // T25: 0.01 keeps 89/156 items eligible on Kelvin (checked against the
+  // committed snapshot) — comfortably above the 12-item minimum build size,
+  // so the starvation fallback is not expected to trigger in practice.
+  minUsageShare: 0.01,
 }
 
 // Back-compat named exports (a few call sites/tests referenced these

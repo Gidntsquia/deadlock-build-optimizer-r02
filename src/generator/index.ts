@@ -1,6 +1,6 @@
 import { buildAbilityOrder } from './abilityOrder'
 import { buildItemChainGroups } from './itemChains'
-import { DEFAULT_SCORE_CONSTANTS, heroMeanWinRate, maxHighBadgeItemMatches, maxItemMatches, pairLift, scoreItem } from './score'
+import { DEFAULT_SCORE_CONSTANTS, blendHighBadgeStat, heroMeanWinRate, maxHighBadgeItemMatches, maxItemMatches, pairLift, scoreItem } from './score'
 import type { ScoreConstants } from './score'
 import { isActiveItem, statValuePerSoul } from './statUtils'
 import type { Archetype, Build, BuildItemEntry, BuildPhase, Hero, HeroAnalytics, Item, ItemPairStat, ItemStat } from './types'
@@ -122,12 +122,23 @@ function buildForArchetype(
         },
         constants,
       )
-      return { item, score }
+      // T25: same blended usage share scoreItem folds into its composite —
+      // recomputed here (rather than widening scoreItem's return) purely for
+      // the eligibility floor below.
+      const { usageRatio } = blendHighBadgeStat(
+        { wins: stat?.wins ?? null, matches: stat?.matches ?? null },
+        { wins: highStat?.wins ?? null, matches: highStat?.matches ?? null },
+        maxMatches,
+        maxHighMatches,
+        constants,
+      )
+      return { item, score, usageRatio }
     })
     // Stable rank: highest static score first, ascending item id breaks
     // ties — this order is also what makes the incremental pick below fully
     // deterministic (see runGreedyPass).
     .sort((a, b) => b.score - a.score || a.item.id - b.item.id)
+  const usageRatioById = new Map(scored.map(({ item, usageRatio }) => [item.id, usageRatio]))
 
   const phaseBuckets: Record<BuildPhase, Item[]> = { early: [], mid: [], late: [] }
   const selectedIds = new Set<number>()
@@ -148,9 +159,14 @@ function buildForArchetype(
 
   const total = () => phaseBuckets.early.length + phaseBuckets.mid.length + phaseBuckets.late.length
 
-  const isEligible = (item: Item, respectQuota: boolean): boolean => {
+  // allowBelowFloor (T25): false in the normal passes below, which enforce
+  // the minUsageShare eligibility floor; true only in the starvation-fallback
+  // passes, so a phase that the floor would otherwise leave short still
+  // fills from the existing stable score order rather than coming up short.
+  const isEligible = (item: Item, respectQuota: boolean, allowBelowFloor: boolean): boolean => {
     if (selectedIds.has(item.id) || blockedByChain.has(item.id)) return false
     if (isActiveItem(item) && activeCount >= ACTIVE_ITEM_CAP) return false
+    if (!allowBelowFloor && (usageRatioById.get(item.id) ?? 0) < constants.minUsageShare) return false
     if (respectQuota) {
       const phase = tierPhase(item.item_tier)
       if (phaseBuckets[phase].length >= PHASE_TARGET_COUNTS[phase]) return false
@@ -167,11 +183,11 @@ function buildForArchetype(
   // the original highest-static-score/lowest-id ordering — determinism is
   // unchanged when pairSynergyWeight is 0 (bonus is always 0, so the
   // effective order collapses to the static order).
-  const runGreedyPass = (respectQuota: boolean, targetTotal: number) => {
+  const runGreedyPass = (respectQuota: boolean, targetTotal: number, allowBelowFloor: boolean) => {
     while (total() < targetTotal) {
       let best: { item: Item; phase: BuildPhase; effectiveScore: number } | null = null
       for (const { item, score } of scored) {
-        if (!isEligible(item, respectQuota)) continue
+        if (!isEligible(item, respectQuota, allowBelowFloor)) continue
         const bonus = pairSynergyBonus(item.id, selectedIds, pairStatsByKey, meanWinRate, constants)
         const effectiveScore = score + bonus
         if (best === null || effectiveScore > best.effectiveScore) {
@@ -184,11 +200,16 @@ function buildForArchetype(
   }
 
   const quotaTotal = PHASE_TARGET_COUNTS.early + PHASE_TARGET_COUNTS.mid + PHASE_TARGET_COUNTS.late
-  runGreedyPass(true, quotaTotal)
+  runGreedyPass(true, quotaTotal, false)
   // Backfill (any tier, quota ignored) if the phase quotas above didn't reach
   // the required minimum — not expected with this snapshot's item counts,
   // but keeps the ≥12-item guarantee robust regardless of pool size.
-  runGreedyPass(false, MIN_TOTAL_ITEMS)
+  runGreedyPass(false, MIN_TOTAL_ITEMS, false)
+  // T25 starvation fallback: only reached if the floor left a phase (or the
+  // overall minimum) short of eligible items — re-run the same two passes
+  // allowing below-floor items, in the existing stable score order.
+  runGreedyPass(true, quotaTotal, true)
+  runGreedyPass(false, MIN_TOTAL_ITEMS, true)
 
   const orderedItems = [...phaseBuckets.early, ...phaseBuckets.mid, ...phaseBuckets.late]
   let runningTotal = 0

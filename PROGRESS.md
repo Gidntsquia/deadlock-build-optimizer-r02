@@ -208,3 +208,13 @@
 - Verified in data: Lightning Scroll (493591231) has ZERO rows in hero-12 item_stats, yet dampedWinRate(matches=0) shrinks to the hero mean WR (0.555), so unseen items score as average-win-rate items; T23's heavier win-rate profile amplified it.
 - Queued T25: `minUsageShare` eligibility floor (default 0.01) in ScoreConstants — below-floor items filtered out of assembly, starvation fallback, roster sweep test, re-report Zergggy agreement vs 48%.
 - Routine stays enabled; next cron fire 21:13Z picks it up (no eager fire — inside the 25-min window).
+
+## 2026-09-01T20:50Z — T25 done: usage-share eligibility floor (Kelvin/Lightning Scroll fixed)
+- `ScoreConstants.minUsageShare` (default 0.01) added; `index.ts`'s `buildForArchetype` now filters candidates by blended `usageRatio` before the greedy pick (hard eligibility, `dampedWinRate` untouched), with a 2-pass starvation guard (floor-respecting fill, then a below-floor fallback pass only if a phase came up short).
+- Confirmed fixed: Kelvin's build no longer contains Lightning Scroll (id 493591231, 0 recorded matches).
+- Roster sweep (all 38 heroes, real snapshot) found the ticket's own "zero starvation" prediction wrong: fallback fires 5 times, always the same real tier-4 item (Siphon Bullets, hundreds of matches per hero) whose usage *ratio* is diluted by that hero's own max-item-match outlier + upgrade-chain exclusivity thinning the late-tier pool — genuine starvation, not the zero-match bug. Test (d) rewritten to assert the real invariant (a fallback pick's raw matches is always > 0; total fallback count bounded ≤10) instead of a literal zero the data disproves.
+- Zergggy agreement re-measured (temp harness reusing tune-generator.mjs's real generateBuilds/validateBuildAgainstMatches path, deleted after use): **48%**, unchanged from T23 — no regression, no re-tune needed.
+- Tests: 4 new (`generator.test.ts`, "usage-share eligibility floor (T25)" describe): (a) no-stats-row item never picked when eligible pool exactly meets quota; (b) at-floor (100/10000=0.01) picked, just-below (99/10000) excluded; (c) starvation fallback backfills from below-floor items in ascending-id tie-break order; (d) roster sweep.
+- README: new "Usage-share eligibility floor (T25)" subsection between T23 synergy and high-elo weighting.
+- Verified: `npm run build` clean; `npx vitest run` 78 passed/2 skipped (+4); `npm run gate:heldout` OK (6 files); `npx playwright test` 10/10.
+- T25 archived to GOALS_ARCHIVE.md. GOALS.md's Open tickets queue is empty again — next fire re-checks ROADMAP.md per PACE:full (2026-09-01T20:34Z's entry above already found the 4 known gaps blocked/needing product input; that stands unless a human adds a scoped ticket).

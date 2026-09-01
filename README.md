@@ -123,6 +123,28 @@ they never fire unless the tuning sweep confirms they help:
   improvement from this signal at the winning affinity level, so it currently ships at 0 (see
   PROGRESS.md for the full sweep result).
 
+### Usage-share eligibility floor (T25)
+
+An item with zero (or near-zero) recorded matches on a hero can still score like an average
+pick: `dampedWinRate` correctly shrinks a thin sample toward the hero's mean win rate, but that
+means an item nobody buys — no matches at all, so no real evidence either way — lands at the
+*mean* rather than being penalized (reported bug: Kelvin's build included Lightning Scroll, which
+almost nobody buys and which he has no practical way to trigger). `minUsageShare` in
+`ScoreConstants` (default `0.01`) fixes this as an eligibility filter rather than a scoring
+change: any item whose blended hero usage share (`blendHighBadgeStat`'s `usageRatio` — 0 with no
+stats row at all) is below the floor is excluded from build assembly outright, before the greedy
+pick loop ever scores it. `dampedWinRate` itself is untouched (its shrink-to-mean is the right
+behavior for thin-but-real samples, and `pairLift` still reuses it).
+
+Because eligibility is now a hard filter, `index.ts`'s `buildForArchetype` runs the greedy fill
+twice per target: first respecting the floor, then — only if a phase still comes up short — a
+second pass allowing below-floor items back in, in the same stable score order, so a phase can
+never come up short of its quota just because too few items clear the floor. A full roster sweep
+against the real snapshot (`generator.test.ts`) found this fallback firing 5 times across 38
+heroes, always the same real (non-zero-match) tier-4 item whose usage ratio is diluted by that
+hero's own max-item-match outlier — genuine starvation, not the zero-match bug the floor exists to
+catch (the same test asserts a fallback pick's raw match count is never 0).
+
 ### High-elo weighting (Phantom+)
 
 Each hero's win rate and usage prefer high-elo evidence. `fetch-data.mjs` pulls a second,
