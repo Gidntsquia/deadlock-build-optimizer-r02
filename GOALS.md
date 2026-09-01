@@ -22,3 +22,8 @@
   - Acceptance: (1) e2e at 390×844: ability panel `scrollWidth <= clientWidth` (no horizontal overflow) with a full 15-step sequence; (2) all 15 steps present in the DOM; (3) jsdom or e2e check that row bars are laid out on the full-width content element (assert the CSS structure); (4) all suites green.
   - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
 
+
+- [ ] **T22 — re-run the tuning sweep on the current snapshots (orchestrator 2026-09-01: T19 tuned against the 173-item catalog; brawl-item removal + refetch changed the data)**
+  - Run `npm run tune` as-is (harness already exists from T19). If the winner differs from the currently applied constants AND beats the current agreement, apply it (plain numbers, same as T19); otherwise record "no change" in PROGRESS.md. Report baseline vs winner agreement either way.
+  - Same rules as T19: sanity floor holds, never touch `public/data/heldout-ctc/`, gate:heldout green.
+  - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
