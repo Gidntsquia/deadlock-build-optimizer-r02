@@ -1,5 +1,11 @@
 # PROGRESS — newest first, ≤25 lines per entry; past ~1,500 lines rotate all but newest ~10 entries verbatim to PROGRESS_ARCHIVE.md
 
+## 2026-09-01T07:50Z — orchestrator: ROUTINE STOPPED (mandatory usage-log rule)
+- Test fire cse_01LnSkCwGvKN3JPPDQ5Z8Puc did T1 fine (success, 47 turns, 213s) but landed NO `usage-log:` commit; watched origin for 30+ min after the run ended 07:21Z — nothing. Per the mandatory token-accounting rule: routine disabled (`enabled: false`, 07:43Z), session backstop cron deleted, reported to user.
+- Run log shows `hook_started ×3 / hook_response ×3`, so hooks executed — the script itself produced no commit. Likely cause (unverified): log-usage.sh no-ops unless `$HOME` is `/home/user`; sandbox evidence (files owned by root, proxy CA at `/root/.ccr/`) suggests the runner's HOME is `/root`, so the cloud-detection guard fails. Script is unmodifiable per experiment rules; possible fix is env `LOG_USAGE_FORCE=1` in the routine environment — user's call.
+- Also confirmed: sandbox egress blocks both Deadlock API hosts (org policy), but the LOCAL machine reaches them (api 200 / assets 301) — when unblocked, split T2: fire writes fetch-data.mjs, orchestrator runs the fetch locally and commits snapshots.
+- Resume: user resolves the hook problem → re-enable trigger (`RemoteTrigger action=update, enabled: true`), re-run one test fire, verify a `usage-log:` commit before any further tickets.
+
 ## 2026-09-01T07:20Z — T1 done: app scaffold + toolchain
 - LOUD FINDING: both `api.deadlock-api.com` and `assets.deadlock-api.com` are BLOCKED from this sandbox — CONNECT rejected with 403 by the org egress proxy (`connect_rejected`, organization policy), not a transient network issue. T2's real fetch cannot run here until that policy allows these hosts (or fetch-data is run from an environment where they're reachable).
 - Built Vite + React 18 + TS scaffold by hand (interactive `npm create vite` wouldn't run non-interactively on a non-empty dir): package.json, vite.config.ts (uses `vitest/config`'s defineConfig — plain `vite`'s defineConfig + a `test` field type-conflicts with 2 vite copies), tsconfig{,.app,.node}.json, index.html, src/main.tsx, src/App.tsx, src/vite-env.d.ts, src/test/setup.ts + smoke.test.tsx.

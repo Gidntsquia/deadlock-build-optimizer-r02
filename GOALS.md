@@ -1,6 +1,7 @@
 # GOALS — Deadlock Build Optimizer
 
 ## Standing rules (every fire reads this first)
+- ⛔ ROUTINE DISABLED 2026-09-01T07:43Z (mandatory token-accounting rule): the Phase 1.5 test fire landed no `usage-log:` commit — Stop hook produced no `.usage-log/` output in the cloud sandbox. Do not re-enable until the user resolves the hook problem (see PROGRESS.md 07:50Z entry).
 - ROUTINE: trigger id `trig_01QxmDBRdwQgKUHKsTf8ZNXg` · cron `13 * * * *` (hourly) · repo https://github.com/Gidntsquia/deadlock-build-optimizer-r02 · runs visible via claude.ai Code routines (RemoteTrigger list_runs with the trigger id)
 - GATES — all must pass before checking any box: `npm run build` · `npm test` · `npm run gate:heldout` (required whenever src/ changed). Code review alone is not verification.
 - HELD-OUT RULE (experiment integrity): nothing under `src/generator/` may read, import, or reference any file under `public/data/zergggy/` — nor contain the string "zergggy" at all. Only `src/validation/` may read that data. Never tune generator weights to raise the Zergggy agreement score; a low score is a finding, not a bug.
