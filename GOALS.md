@@ -1,7 +1,8 @@
 # GOALS — Deadlock Build Optimizer
 
 ## Standing rules (every fire reads this first)
-- ⛔ ROUTINE DISABLED 2026-09-01T07:43Z (mandatory token-accounting rule): the Phase 1.5 test fire landed no `usage-log:` commit — Stop hook produced no `.usage-log/` output in the cloud sandbox. Do not re-enable until the user resolves the hook problem (see PROGRESS.md 07:50Z entry).
+- USAGE-LOG WAIVER (user decision 2026-09-01T07:55Z): the Stop hook lands no `usage-log:` commits from the cloud sandbox (HOME-guard mismatch). The user explicitly waived the halt rule — NEVER halt, disable, or park the routine over missing usage-log commits. `scripts/log-usage.sh`, `.claude/settings.json`, `.usage-log/` still must never be modified.
+- SANDBOX EGRESS: cloud fires CANNOT reach `api.deadlock-api.com` or `assets.deadlock-api.com` (org proxy rejects CONNECT, 403). Never attempt live API fetches in a fire, and never fabricate data. All real fetching is done LOCALLY by the orchestrator (T2b). Fires build code + tests that work offline against committed snapshots or small fixtures; a ticket blocked on missing snapshots gets skipped with a one-line PROGRESS.md note.
 - ROUTINE: trigger id `trig_01QxmDBRdwQgKUHKsTf8ZNXg` · cron `13 * * * *` (hourly) · repo https://github.com/Gidntsquia/deadlock-build-optimizer-r02 · runs visible via claude.ai Code routines (RemoteTrigger list_runs with the trigger id)
 - GATES — all must pass before checking any box: `npm run build` · `npm test` · `npm run gate:heldout` (required whenever src/ changed). Code review alone is not verification.
 - HELD-OUT RULE (experiment integrity): nothing under `src/generator/` may read, import, or reference any file under `public/data/zergggy/` — nor contain the string "zergggy" at all. Only `src/validation/` may read that data. Never tune generator weights to raise the Zergggy agreement score; a low score is a finding, not a bug.
@@ -12,9 +13,12 @@
 
 ## Open tickets
 
-- [ ] **T2 — Data pipeline (`npm run fetch-data`)**
-  Goal: scripts/fetch-data.mjs snapshots everything the app needs into public/data/, pruned, and the snapshots get committed.
-  Files: scripts/fetch-data.mjs, public/data/** (generated), src/test/snapshots.test.ts.
+- [ ] **T2a — Data pipeline script (`npm run fetch-data`) — code only, no network**
+  Goal: fully implement scripts/fetch-data.mjs per the Outputs list below, plus src/test/snapshots.test.ts. The sandbox cannot reach the APIs (see SANDBOX EGRESS above) — do NOT run the real fetch; the orchestrator runs it locally in T2b.
+  Files: scripts/fetch-data.mjs, src/test/snapshots.test.ts.
+  Requirements: rerunnable; sequential requests with ≥300 ms sleep; one retry after 5 s on HTTP 429; prune fields per the Outputs list; write `public/data/meta.json` last (fetched_at + counts). snapshots.test.ts asserts the counts/required fields below against committed snapshots, but SKIPS cleanly (vitest skipIf) when `public/data/meta.json` is absent.
+  Acceptance: `node --check scripts/fetch-data.mjs` clean; gates green with snapshots absent (tests skip, not fail). Real-data verification happens in T2b.
+  Verify: `node --check scripts/fetch-data.mjs && npm run build && npm test && npm run gate:heldout`
   Outputs:
   - `public/data/items.json` — all upgrade items from `https://assets.deadlock-api.com/v2/items/by-type/upgrade`: id, class_name, name, cost, item_tier, item_slot_type, image webp URL, and the properties/tooltip fields needed for the detail card (stat lines + active/passive descriptions). ≥200 shopable items.
   - `public/data/heroes.json` — ACTIVE heroes only (exclude disabled/in-development): id, name, card image URL, base stats + per-level stat growth, and the hero's 4 ability ids + real names.
@@ -23,10 +27,13 @@
   - `public/data/personal/matches.json` — account 267836488 match history, standard matchmaking modes only, pruned to hero_id, won/lost, duration seconds, start_time.
   - `public/data/zergggy/matches.json` — VALIDATION ONLY. Account 35187362: Infernus (hero_id 1) real matchmaking matches (exclude private lobby / bot modes), newest ~30; fetch each match's `/v1/matches/{id}/metadata` and prune to match_id, won, and Zergggy's item purchases as [{item_id, game_time_s}]. ≥20 matches with purchase data required.
   - `public/data/meta.json` — fetched_at + counts.
-  Acceptance: script is rerunnable; src/test/snapshots.test.ts asserts the counts/required fields above against the committed snapshots; `du -sh public/data` < 15 MB; snapshots committed in the same push.
+
+- [ ] **T2b — Run the fetch + commit snapshots — ORCHESTRATOR ONLY, fires must SKIP this ticket** (it needs API access the sandbox doesn't have; skip silently, no PROGRESS note needed, and take the next unchecked ticket)
+  Goal: orchestrator runs `node scripts/fetch-data.mjs` on the local machine, verifies, commits `public/data/**`.
+  Acceptance: snapshots.test.ts passes with data present; `du -sh public/data` < 15 MB; snapshots committed and pushed.
   Verify: `node scripts/fetch-data.mjs && npm test`
 
-- [ ] **T3 — Deterministic build generator**
+- [ ] **T3 — Deterministic build generator** (needs T2b's committed snapshots for its tests; if `public/data/meta.json` is absent, skip to T4 — its tests are fixture-based)
   Goal: src/generator/ produces ≥2 named builds for ANY active hero from aggregate snapshots only.
   Files: src/generator/**, src/test/generator.test.ts, scripts/gate-heldout.mjs (real implementation).
   Spec: a documented, deterministic scoring function (stable tie-breaks by item id). Inputs: items.json, heroes.json, analytics/hero-<id>.json, infernus-permutations.json when present — NEVER zergggy data. Score items on: win rate with confidence damping by sample size (shrink toward the hero mean), usage rate, stat value per soul, tier/soul thresholds by game phase (early/mid/late budgets), per-build archetype weight profiles derived from the hero's scaling stats in heroes.json (Infernus: gun/fire-rate archetype vs spirit/afterburn archetype), and an active/passive balance cap. Output per build: name, ordered buy list of ≥12 items grouped early/mid/late with per-item cost + running soul total, plus ability level-up sequence (unlock order + tier-upgrade order) for the hero's 4 real abilities driven by ability-order-stats (deterministic sensible fallback when a hero lacks data).

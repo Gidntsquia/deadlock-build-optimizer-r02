@@ -1,5 +1,10 @@
 # PROGRESS — newest first, ≤25 lines per entry; past ~1,500 lines rotate all but newest ~10 entries verbatim to PROGRESS_ARCHIVE.md
 
+## 2026-09-01T07:55Z — orchestrator: routine RE-ENABLED — user waived the usage-log halt rule
+- User decision (verbatim intent): keep running, ignore the token-logging issue, don't halt again. Trigger re-enabled 07:52Z; next fire 08:13Z; backstop cron re-armed.
+- GOALS.md header updated: USAGE-LOG WAIVER + SANDBOX EGRESS standing rules. T2 split: T2a (fire implements fetch-data.mjs + snapshots.test.ts offline, tests skip when snapshots absent) and T2b (ORCHESTRATOR ONLY: run the real fetch locally — local probes reach both hosts — and commit snapshots). T3 skips ahead to T4 if snapshots aren't committed yet.
+- log-usage.sh / settings.json / .usage-log remain untouched per experiment rules.
+
 ## 2026-09-01T07:50Z — orchestrator: ROUTINE STOPPED (mandatory usage-log rule)
 - Test fire cse_01LnSkCwGvKN3JPPDQ5Z8Puc did T1 fine (success, 47 turns, 213s) but landed NO `usage-log:` commit; watched origin for 30+ min after the run ended 07:21Z — nothing. Per the mandatory token-accounting rule: routine disabled (`enabled: false`, 07:43Z), session backstop cron deleted, reported to user.
 - Run log shows `hook_started ×3 / hook_response ×3`, so hooks executed — the script itself produced no commit. Likely cause (unverified): log-usage.sh no-ops unless `$HOME` is `/home/user`; sandbox evidence (files owned by root, proxy CA at `/root/.ccr/`) suggests the runner's HOME is `/root`, so the cloud-detection guard fails. Script is unmodifiable per experiment rules; possible fix is env `LOG_USAGE_FORCE=1` in the routine environment — user's call.
