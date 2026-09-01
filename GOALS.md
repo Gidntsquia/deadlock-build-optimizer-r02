@@ -14,12 +14,6 @@
 
 ## Open tickets
 
-- [ ] **T16 — remove the personal-insight block at the top of the app (user request 2026-09-01: "I don't care for the personal insight at the top")**
-  - Goal: the top-of-page personal match-history insight section is gone entirely. If the only consumer of `src/personalization/` is that block, delete the module, its tests, its README section, and its CLAUDE.md repo-map line too. Per-build/per-item annotations elsewhere (if any) stay. `public/data/personal-matches.json` and the fetch pipeline stay untouched (orchestrator-owned; unused data is fine).
-  - Files: `src/App.tsx`, the insight component, `src/personalization/` (likely delete), `src/test/` suites that reference it, README, CLAUDE.md repo map.
-  - Acceptance: (1) no insight block renders at the top on any hero; (2) no dead imports/dead module left if unconsumed; (3) all suites green (personalization tests removed with the module).
-  - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
-
 - [ ] **T18 — builds must be buyable in-game: respect upgrade chains, catalog-only items (user bug report 2026-09-01: Infernus build buys Extra Spirit after Improved Spirit; shows "upgrade_stabilizing_tripod", not a real item)**
   - Data (already committed by orchestrator): `items.json` now contains ONLY real shop items (173, was 251 — disabled/non-shopable entries like upgrade_stabilizing_tripod are gone), and each item carries `components: number[]` (catalog ids of the items it upgrades from; buying the upgrade consumes the component, which then becomes unpurchasable in-game).
   - Generator rules: (1) every recommended item id must exist in the catalog — analytics rows whose item_id is not in items.json are skipped everywhere (score, buy order, permutations); (2) a build never contains two items from the same upgrade chain: if a picked item's `components` (follow transitively) or any item that lists it as a component is also picked, keep the higher-scoring one, drop the other, refill from the next-best candidate — deterministic (score desc, then ascending item id).

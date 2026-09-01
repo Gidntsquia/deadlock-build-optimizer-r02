@@ -2,13 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import BuildCard from './components/BuildCard'
 import HeroPicker from './components/HeroPicker'
 import ItemDetailSheet from './components/ItemDetailSheet'
-import PersonalizationBanner from './components/PersonalizationBanner'
 import { INFERNUS_HERO_ID } from './constants'
-import { loadHeroAnalytics, loadHeroes, loadItems, loadPersonalMatches } from './data/loaders'
+import { loadHeroAnalytics, loadHeroes, loadItems } from './data/loaders'
 import type { Build, Hero, Item } from './generator'
 import { generateBuilds } from './generator'
-import type { DurationInsight } from './personalization'
-import { computeDurationInsight } from './personalization'
 import './styles.css'
 import type { ValidationReport } from './validation'
 import { validateBuildsAgainstHeldOut } from './validation'
@@ -19,7 +16,6 @@ function App() {
   const [items, setItems] = useState<Item[] | null>(null)
   const [heroes, setHeroes] = useState<Hero[] | null>(null)
   const [baseState, setBaseState] = useState<LoadState>('loading')
-  const [insight, setInsight] = useState<DurationInsight | null>(null)
 
   const [selectedHeroId, setSelectedHeroId] = useState<number | null>(null)
   const [build, setBuild] = useState<Build | null>(null)
@@ -30,12 +26,11 @@ function App() {
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([loadItems(), loadHeroes(), loadPersonalMatches()])
-      .then(([loadedItems, loadedHeroes, personalMatches]) => {
+    Promise.all([loadItems(), loadHeroes()])
+      .then(([loadedItems, loadedHeroes]) => {
         if (cancelled) return
         setItems(loadedItems)
         setHeroes(loadedHeroes)
-        setInsight(computeDurationInsight(personalMatches))
         const infernus = loadedHeroes.find((hero) => hero.id === INFERNUS_HERO_ID)
         setSelectedHeroId(infernus ? infernus.id : (loadedHeroes[0]?.id ?? null))
         setBaseState('ready')
@@ -101,7 +96,6 @@ function App() {
       {baseState === 'ready' && heroes && (
         <>
           <HeroPicker heroes={heroes} selectedHeroId={selectedHeroId} onSelect={setSelectedHeroId} />
-          {insight && <PersonalizationBanner insight={insight} />}
 
           {buildState === 'error' && (
             <p role="alert">Couldn't load builds for {selectedHero?.name ?? 'this hero'}.</p>

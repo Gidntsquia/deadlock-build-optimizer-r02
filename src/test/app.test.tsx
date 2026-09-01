@@ -29,6 +29,9 @@ describe.skipIf(!hasSnapshots)('App', () => {
     const agreementBadges = await screen.findAllByText(/% agreement/)
     expect(agreementBadges.length).toBe(1)
 
+    // T16: the top-of-page personal match-history insight banner is gone.
+    expect(document.querySelector('.personalization-banner')).toBeNull()
+
     const buildCards = document.querySelectorAll('.build-card')
     expect(buildCards.length).toBe(1)
     for (const card of Array.from(buildCards)) {

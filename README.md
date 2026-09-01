@@ -38,7 +38,7 @@ talks to at runtime).
 | `public/data/heroes.json` | Every **active** hero (disabled/in-development heroes excluded): id, name, base stats, stat growth, and the hero's 4 real ability ids + names. |
 | `public/data/analytics/hero-<id>.json` | Per-hero item win/usage stats and ability-order stats, for every active hero. |
 | `public/data/analytics/infernus-permutations.json` | Item-permutation stats for Infernus only (a fetch-budget decision — every other hero's analytics come from the per-hero file above). |
-| `public/data/personal/matches.json` | One account's standard-matchmaking match history (hero, win/loss, duration, start time) — powers the personalization insight. |
+| `public/data/personal/matches.json` | One account's standard-matchmaking match history (hero, win/loss, duration, start time). Fetched but currently unused by the UI — the personal-insight banner that read it was removed (T16). |
 | `public/data/zergggy/matches.json` | **Held-out only.** ~30 of Zergggy's real Infernus matches (real matchmaking, private lobbies/bots excluded), each with `{item_id, game_time_s}` purchases. |
 | `public/data/meta.json` | `fetched_at` + counts, written last. |
 
@@ -147,12 +147,6 @@ buyOrderAgreement = win-weighted pairwise concordance of the build's shared core
 
 Because Zergggy's sample is Infernus-only, the core/not-core badge and agreement % only appear on
 Infernus's builds — every other hero's builds render normally, just without a validation report.
-
-## Personalization (`src/personalization/`)
-
-One insight, computed from `public/data/personal/matches.json`: the median duration of the
-player's standard matches, labeled short (<25 min) / average (25–40 min) / long (>40 min), shown as
-a banner meant to contextualize the late-game budget in the build below it.
 
 ## UI (`src/App.tsx`, `src/components/**`)
 

@@ -13,7 +13,6 @@ Commands: `npm run dev` · `npm run build` · `npm test` (vitest/jsdom) · `npm 
   - `zergggy/` — held-out validation data: ONLY `src/validation/` may read it
 - `src/generator/` — deterministic build scoring (no zergggy access, ever)
 - `src/validation/` — Zergggy core-set + agreement scoring
-- `src/personalization/` — user match-history insight
 - `src/components/` — UI components
 - `src/data/` — runtime snapshot loaders (`fetch('/data/**')`); no zergggy access, ever
 - `src/test/` — vitest suites
