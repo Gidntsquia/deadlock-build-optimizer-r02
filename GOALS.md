@@ -13,6 +13,14 @@
 
 ## Open tickets
 
+- [ ] **T13 — one recommended build per hero (user request 2026-09-01; deliberately ordered before T10 so the restyle lands on the single-build layout)**
+  - Goal: the app shows exactly ONE good build per hero, not a list of alternatives. Generator keeps building its archetype candidates internally but exports a single best build: highest total composite score across candidates, stable tie-break (ascending archetype name, then ascending item ids). Determinism preserved.
+  - HELD-OUT RULE (critical): the pick must use ONLY generator-internal scores. Never consult `src/validation/` output or Zergggy agreement to choose the build — that would be tuning to the held-out set. The agreement % (Infernus) is computed for the ONE exported build, displayed as before, and recorded in PROGRESS.md as a finding.
+  - UI: one build card; keep the winning archetype visible as a subtitle (e.g. "Spirit build") so the choice is legible. Ability order + personalization annotation attach to that single build.
+  - Files: `src/generator/index.ts` (+types if the return shape changes), `src/App.tsx`, `src/components/BuildCard.tsx`, `src/test/generator.test.ts` (≥2-builds assertions become exactly-1), `src/test/app.test.tsx`, `e2e/mobile.spec.ts` if it counts builds, README's generator section.
+  - Acceptance: (1) every hero exports exactly 1 build with ≥12 items + 4 named abilities; (2) determinism test still green; (3) fixture test: candidate with higher total score wins, tie broken by archetype name; (4) Infernus still shows the agreement chip for the exported build; (5) all suites green.
+  - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
+
 - [ ] **T10 — restyle build display to match Deadlock's in-game build browser (user request 2026-09-01, from a reference screenshot)**
   - Goal: builds render like the in-game build editor. The reference (user-provided screenshot of the real game; fires can't see it — this spec is authoritative):
     - Each game phase is a titled horizontal section panel — "Early Game", "Mid to Late Game" — on a parchment/tan panel (`#b8a98c`-ish, subtle texture ok) over the app's dark background. Map our early→"Early Game", mid+late→"Mid to Late Game" or keep three sections with in-game-style titles — your call, document it. A third lighter-blue-tinted section titled "Testing" with an "OPTIONAL" chip is how the game shows experimental items — if we have leftover/near-miss items available cheaply, use it; otherwise omit (do NOT invent data for it).

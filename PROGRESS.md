@@ -30,6 +30,10 @@
 - heroes.json abilities now carry `image` URLs (orchestrator refetched locally, same egress pattern; all 38×4 resolved). CLAUDE.md repo map updated for DESIGN.md.
 - Queue order: T8 → T9 → T10 → T11 → T12.
 
+## 2026-09-01T17:10Z — orchestrator: T13 (single best build) queued ahead of the UI tickets
+- User wants exactly one good build per hero. T13 inserted between T9 and T10 (queue position, not ticket number, is execution order) so T10's restyle lands on the single-build layout.
+- Pick rule pinned in the ticket: generator-internal composite score only, stable tie-breaks — NEVER pick using Zergggy agreement (held-out rule). Queue order now: T8 → T9 → T13 → T10 → T11 → T12.
+
 ## 2026-09-01T16:35Z — orchestrator: deployed to GitHub Pages (user request, post-delivery)
 - Live at https://gidntsquia.github.io/deadlock-build-optimizer-r02/ — verified index 200, `data/meta.json` 200, JS bundle 200, gates re-run green before push.
 - Changes (commit 97619da): `base: './'` in vite.config.ts, loaders + validation fetch via `import.meta.env.BASE_URL`, `.github/workflows/pages.yml` (builds on push to main + manual dispatch).
