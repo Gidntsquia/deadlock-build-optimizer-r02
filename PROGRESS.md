@@ -1,5 +1,14 @@
 # PROGRESS — newest first, ≤25 lines per entry; past ~1,500 lines rotate all but newest ~10 entries verbatim to PROGRESS_ARCHIVE.md
 
+## 2026-09-01T19:33Z — T18 done: builds respect upgrade chains, catalog-only items
+- `Item` gained `components: number[]`. New `src/generator/itemChains.ts`: `buildItemChainGroups(items)` — union-find over the components graph, ids outside the catalog ignored — returns `Map<itemId, Set<chainMemberIds>>` covering both directions (an item's components and anything that lists it as a component) transitively.
+- `generateBuilds` now filters `item_stats`/`high_badge_item_stats` to catalog ids before any scoring, so a non-shopable item (e.g. the real bug-report case, "upgrade_stabilizing_tripod") can never be recommended. `buildForArchetype` gained a `blockedByChain` Set: taking an item blocks every other member of its chain group in both the greedy pass and the backfill loop — refill is inherent to the existing pass (score-desc, ascending-id order already primes the next-best candidate).
+- Tests (+6, 57/2/59 total): 2 snapshot-backed (all 38 heroes' builds are catalog-only and chain-clean; Infernus's build has at most one of the real Extra/Improved/Boundless Spirit chain, chain root found by name not hardcoded id), 3 `buildItemChainGroups` fixtures, 1 `generateBuilds` integration test proving the exact drop+refill scenario from the acceptance criteria.
+- README: fixed a stale "251 items" reference, updated the items.json data-table row, added a paragraph on catalog-filtering + chain-exclusivity.
+- Verified: `npm run build` clean; `npx vitest run` 57 passed/2 skipped; `npm run gate:heldout` OK (6 files); `npx playwright test` 5/5.
+- Push hit a real conflict: while this ticket was in flight, the orchestrator pushed a held-out redesign (Zergggy → tuning set, new `heldout-ctc`/ctc-Drifter held-out set, `gate:heldout` needle now matches both strings) + queued T19 (tune constants toward Zergggy agreement) and T20 (ctc/Drifter held-out chip). Merged cleanly (GOALS.md auto-merged), re-verified all green post-merge, then pushed.
+- T18 archived to GOALS_ARCHIVE.md. Budget still healthy — continuing to T17 (last ticket queued before the merge) next in this same fire, per PACE:full; T19/T20 (newly queued, need the constants-sweep harness) come after.
+
 ## 2026-09-01T18:46Z — T12 done: app-wide design cohesion pass (queue now empty)
 - Whole pass is CSS-only — no JSX changes beyond `main.tsx`'s font imports. `.build-card` dropped its own solid background so the teal title bar + parchment/navy panels float on the abyss between them (DESIGN.md's actual framing) instead of sitting boxed inside a dark card.
 - Added 8 `:root` tokens beyond DESIGN.md's own table for surfaces the screenshots don't cover (hero select, banner, badges, overlay scrim) — same abyss-family palette, never white, still confined to `:root`.
