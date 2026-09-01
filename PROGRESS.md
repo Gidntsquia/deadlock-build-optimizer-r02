@@ -1,5 +1,11 @@
 # PROGRESS — newest first, ≤25 lines per entry; past ~1,500 lines rotate all but newest ~10 entries verbatim to PROGRESS_ARCHIVE.md
 
+## 2026-09-01T16:35Z — orchestrator: deployed to GitHub Pages (user request, post-delivery)
+- Live at https://gidntsquia.github.io/deadlock-build-optimizer-r02/ — verified index 200, `data/meta.json` 200, JS bundle 200, gates re-run green before push.
+- Changes (commit 97619da): `base: './'` in vite.config.ts, loaders + validation fetch via `import.meta.env.BASE_URL`, `.github/workflows/pages.yml` (builds on push to main + manual dispatch).
+- Repo made PUBLIC per explicit user instruction ("make the repo public. I can just delete it later") — free plan doesn't allow Pages on private repos. Revert: repo Settings → make private (Pages then stops serving).
+- Leftover: empty public repo `deadlock-build-optimizer-r02-site` (created for a dist-only route the user superseded; token lacks delete_repo scope) — safe to delete manually.
+
 ## 2026-09-01T10:55Z — orchestrator: PROJECT DELIVERED — routine disabled, supervision torn down
 - Queue empty, T1–T7 all archived. Independently re-verified on the local machine (not just fire claims): `npm run build` clean, `npm test` 30 passed/2 skipped, `npm run gate:heldout` OK (5 generator files clean), and a production `vite preview` smoke — index 200, `/data/meta.json` 200, JS bundle 200. Real-browser layout/tap-target proof is T6's Playwright run (5/5, cloud sandbox, chromium preinstalled).
 - Routine `trig_01QxmDBRdwQgKUHKsTf8ZNXg` DISABLED 10:52Z (project complete — Phase 5 teardown, before the 11:13Z fire could start pulling ROADMAP stretch scope nobody requested). Session backstop cron deleted. Re-enable recipe: `RemoteTrigger action=update, enabled: true`; stretch candidates live in ROADMAP.md's known-gaps list.
