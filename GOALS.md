@@ -1,5 +1,8 @@
 # GOALS — Deadlock Build Optimizer
 
+
+> **PROJECT CLOSED 2026-09-01T21:46Z (user decision: complete regardless of state).** Routine `trig_01QxmDBRdwQgKUHKsTf8ZNXg` is DISABLED; the session backstop cron is deleted. No fire should ever run against this queue again — if you are a fire reading this, stop immediately and make no changes.
+
 ## Standing rules (every fire reads this first)
 - USAGE-LOG WAIVER (user decision 2026-09-01T07:55Z): the Stop hook lands no `usage-log:` commits from the cloud sandbox (HOME-guard mismatch). The user explicitly waived the halt rule — NEVER halt, disable, or park the routine over missing usage-log commits. `scripts/log-usage.sh`, `.claude/settings.json`, `.usage-log/` still must never be modified.
 - SANDBOX EGRESS: cloud fires CANNOT reach `api.deadlock-api.com` or `assets.deadlock-api.com` (org proxy rejects CONNECT, 403). Never attempt live API fetches in a fire, and never fabricate data. All real fetching is done LOCALLY by the orchestrator (T2b). Fires build code + tests that work offline against committed snapshots or small fixtures; a ticket blocked on missing snapshots gets skipped with a one-line PROGRESS.md note.
@@ -14,19 +17,4 @@
 
 ## Open tickets
 
-- [ ] **T26 — Infernus build quality: usage must outrank thin-sample win rate; chain stage by usage (user 2026-09-01T20:55Z: "The Infernus build simply looks bad; adjust the numbers to improve it")**
-  - Orchestrator diagnosis (measured from the committed snapshots — do not re-derive):
-    - Current Infernus build (48% agreement) picks Siphon Bullets (1% Infernus usage share), Unstoppable (5%), Juggernaut (12%), Spirit Rend (23%) — low-usage luxury items riding 52–54% win rates. Item-level WR only spans ~48–54% on Infernus and is inflated by selection bias (luxury items get bought in games already being won), while usage share spans 1–100%: usage is the informative signal, WR is nearly noise without volume behind it.
-    - Zergggy staples the build MISSES: Improved Spirit (30/30 of his matches, 98% Infernus usage), Extra Spirit (29/30, 82%), Healbane (30/30, 42%), Escalating Exposure (20/30, 71% usage, 54.0% WR — the single clearest snub), Rapid Recharge (20/30, 58%), Extra Charge (15/30, 47%).
-    - Spirit chain: the build shows Boundless Spirit (58% usage) as the chain's pick while Improved Spirit sits at 98% — T18's one-per-chain rule is right, but the STAGE shown should follow usage, not endpoint score alone.
-    - T25's starvation fallback re-admits Siphon Bullets on 5 heroes — the fallback should prefer the highest-usage below-floor candidates (stable tie ascending id), so a 1%-usage item is the last resort, not the first fallback.
-  - Changes (all behind `ScoreConstants`, the sweep decides the values):
-    1. Grid: add usage-dominant weight profiles (usage weight up to ~0.6, win-rate down to ~0.1).
-    2. Usage-scaled win-rate confidence: scale the win-rate deviation `(dampedWinRate − meanWinRate)` by `min(1, usageShare / usageConfidenceShare)`; grid `usageConfidenceShare ∈ {0 (off), 0.2, 0.3}` — an item bought in 5% of matches must not ride its WR past mass-usage staples.
-    3. Chain-stage selection: when a chain group wins a slot, display/pick the stage with the highest hero usage share (stable tie: ascending item id) instead of the highest-scoring endpoint. T18 one-per-chain and T13 single-build determinism hold.
-    4. Fallback ordering fix per the diagnosis above (highest usage first among below-floor).
-    5. Include `minUsageShare ∈ {0.01, 0.05, 0.1}` in the grid.
-  - Re-run `npm run tune` with the expanded grid (coarse-then-fine, ≤ ~1500 combos), apply the argmax with the usual deterministic ties + all-hero sanity floor.
-  - Acceptance: (1) Zergggy agreement > 48%, new number + winning constants in PROGRESS.md; (2) the new Infernus build listed item-by-item in PROGRESS.md with each item's usage%/WR — nothing below the tuned floor except explicit fallbacks; (3) fixture tests for usage-scaled confidence, chain-stage-by-usage, and the fallback ordering; (4) all suites + gates green.
-  - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
-  - Session update (2026-09-01, see PROGRESS.md for full detail): all 5 changes are implemented (usage-dominant profiles, `usageConfidenceScale`, chain-stage-by-usage display swap behind a new `chainStageByUsage` constant, usage-first starvation fallback, `minUsageShare` grid) and a legitimate 594-combo `npm run tune` sweep ran clean. Acceptance (1) is NOT met: the argmax ties the pre-T26 48% baseline with every new lever at its off/baseline value — none of them improve Zergggy agreement for Infernus on the current snapshot (chain-stage-by-usage measured 48%→34%, see PROGRESS.md for why). Leaving this unchecked rather than force a number. Still open/untried: the diagnosis's fully-missing staples (Healbane, Escalating Exposure, Rapid Recharge, Extra Charge — not chain-mates of anything currently picked, so none of the above 5 changes could have surfaced them) — a next session should check why they never win a slot at all before re-running the sweep.
+(PROJECT CLOSED — no open tickets. T26 moved to GOALS_ARCHIVE.md unfinished.)
