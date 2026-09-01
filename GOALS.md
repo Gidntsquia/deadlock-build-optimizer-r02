@@ -32,5 +32,6 @@
   - Types/loaders: add the two fields where the Item/HeroAnalytics types live; loaders are generic passthrough.
   - Re-run `npm run tune` with the expanded grid. Keep the search bounded (≤ ~1500 combos; coarse-then-fine two-stage is fine if runtime demands). Apply the argmax (same deterministic ties + sanity floor as T19).
   - HARD LIMITS: never read/reference `public/data/heldout-ctc/`; gate:heldout green; determinism + T18 chain rules + T13 single-build all hold.
-  - Acceptance: (1) tuned Zergggy agreement ≥ the current 46%, both numbers in PROGRESS.md with the winning constants and grid size; (2) fixture tests for affinity multiplier and pair-synergy bonus (including the damped/unseen-pair zero case); (3) all suites + gates green.
+  - Also report CONTEXT (validation-side, cheap): Zergggy's self-agreement — mean pairwise core-set agreement across his own 30 matches — as the practical ceiling for this metric; a single fixed build can't beat a player's own match-to-match variance.
+  - Acceptance: (1) tuned Zergggy agreement ≥ the current 46%, both numbers in PROGRESS.md with the winning constants and grid size, plus the self-agreement ceiling; (2) fixture tests for affinity multiplier and pair-synergy bonus (including the damped/unseen-pair zero case); (3) all suites + gates green.
   - Verify: `npm run build` · `npm test` · `npm run gate:heldout` · `npm run test:e2e`.
