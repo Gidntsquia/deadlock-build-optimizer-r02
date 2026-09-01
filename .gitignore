@@ -3,3 +3,4 @@ dist/
 .claude/skills/
 *.log
 .DS_Store
+*.tsbuildinfo
