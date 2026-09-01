@@ -8,5 +8,4 @@ MVP acceptance checklist: fully walked and checked off by T7 (2026-09-01) — se
 - Per-hero archetype tuning beyond Infernus (weight profiles per hero class).
 - Situational/counter item swap suggestions.
 - Validation against additional top players.
-- PWA caching of item images for true offline visuals.
 - Build export in an in-game-importable format, if the API documents one.

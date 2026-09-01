@@ -217,4 +217,8 @@
 - Tests: 4 new (`generator.test.ts`, "usage-share eligibility floor (T25)" describe): (a) no-stats-row item never picked when eligible pool exactly meets quota; (b) at-floor (100/10000=0.01) picked, just-below (99/10000) excluded; (c) starvation fallback backfills from below-floor items in ascending-id tie-break order; (d) roster sweep.
 - README: new "Usage-share eligibility floor (T25)" subsection between T23 synergy and high-elo weighting.
 - Verified: `npm run build` clean; `npx vitest run` 78 passed/2 skipped (+4); `npm run gate:heldout` OK (6 files); `npx playwright test` 10/10.
-- T25 archived to GOALS_ARCHIVE.md. GOALS.md's Open tickets queue is empty again — next fire re-checks ROADMAP.md per PACE:full (2026-09-01T20:34Z's entry above already found the 4 known gaps blocked/needing product input; that stands unless a human adds a scoped ticket).
+- T25 archived to GOALS_ARCHIVE.md. GOALS.md's Open tickets queue is empty again — next fire re-checks ROADMAP.md per PACE:full (2026-09-01T20:34Z's entry above already found the 4 remaining known gaps blocked/needing product input; that stands unless a human adds a scoped ticket).
+
+## 2026-09-01T20:51Z — ROADMAP.md truthfulness fix (small, no ticket needed)
+- Budget remained after T25 (per PACE:full); re-checked ROADMAP.md's known gaps before concluding there's nothing to do — same 4 as the 20:34Z assessment, still blocked/need product input, nothing changed.
+- Noticed ROADMAP.md still listed "PWA caching of item images for true offline visuals" as a gap even though T24 (2026-09-01, see git log) already shipped it — removed the stale line to keep the doc truthful. Doc-only change, no gates required (build/test/gate:heldout unaffected).
