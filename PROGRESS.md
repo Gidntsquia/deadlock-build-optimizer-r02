@@ -1,5 +1,14 @@
 # PROGRESS — newest first, ≤25 lines per entry; past ~1,500 lines rotate all but newest ~10 entries verbatim to PROGRESS_ARCHIVE.md
 
+## 2026-09-01T08:20Z — recovered stranded commits; T2a done: fetch-data.mjs + snapshots.test.ts
+- FOUND FIRST: repo was in detached HEAD 3 commits ahead of `main`/`origin/main` (the T1 scaffold + two orchestrator notes never reached origin — likely a prior fire didn't `git checkout main` before committing). Verified it was a clean fast-forward, reset `main` to that HEAD, pushed. `origin/main` now matches; no work was lost, but future fires: confirm `git symbolic-ref HEAD` / `git branch --show-current` is `main` before committing.
+- T2a done: scripts/fetch-data.mjs fully implemented (items/heroes/analytics/permutations/personal+zergggy matches, sequential fetch with 300ms gaps, one 5s retry on 429, meta.json written last) per GOALS.md's Outputs list. Kept code-only per SANDBOX EGRESS rule — did not attempt a live fetch.
+- src/test/snapshots.test.ts: skipIf(no public/data/meta.json) — currently skips (7 tests skipped); asserts full schema/counts once snapshots exist.
+- Added @types/node devDep + `"node"` to tsconfig.app.json's `types` (snapshots.test.ts needs fs/path/process; build failed without it — fixed, not scope creep, needed for the ticket's own test file).
+- JUDGMENT CALL (flagged for T2b): exact upstream field names for items/heroes/analytics/match-history/match-metadata endpoints are unconfirmed (no egress here) — pruning uses a defensive `firstDefined(obj, [key,...])` fallback. Orchestrator should spot-check real payloads against scripts/fetch-data.mjs's field guesses when running T2b and adjust key names if wrong; logic/output shape should not need to change.
+- Verified (this sandbox): `node --check scripts/fetch-data.mjs` clean, `npm run build` clean, `npm test` (2 passed, 7 skipped), `npm run gate:heldout` OK. NOT verified: real fetch correctness (needs T2b, real network + real payload shapes).
+- T2a archived to GOALS_ARCHIVE.md. Next: T2b is orchestrator-only (fires skip it). T3 needs T2b's committed snapshots or skips to T4; T4's tests are fixture-based so it doesn't block on data. Didn't reach T4 this fire — leaving it for the next.
+
 ## 2026-09-01T07:55Z — orchestrator: routine RE-ENABLED — user waived the usage-log halt rule
 - User decision (verbatim intent): keep running, ignore the token-logging issue, don't halt again. Trigger re-enabled 07:52Z; next fire 08:13Z; backstop cron re-armed.
 - GOALS.md header updated: USAGE-LOG WAIVER + SANDBOX EGRESS standing rules. T2 split: T2a (fire implements fetch-data.mjs + snapshots.test.ts offline, tests skip when snapshots absent) and T2b (ORCHESTRATOR ONLY: run the real fetch locally — local probes reach both hosts — and commit snapshots). T3 skips ahead to T4 if snapshots aren't committed yet.
