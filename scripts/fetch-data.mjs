@@ -54,6 +54,57 @@ function pickImage(item) {
 // Upstream tooltip/property shapes are not confirmed from this sandbox (no
 // egress) — this reads the plausible field names defensively and is expected
 // to be spot-checked against real payloads when T2b runs the fetch for real.
+// The game's tooltip is defined by tooltip_sections: each section lists exactly
+// which property keys are displayed (properties / elevated_properties /
+// important_properties) — everything else in the property bag is engine-internal
+// and never shown ("ghost stats"). Verified against live payloads 2026-09-01;
+// 239/251 upgrade items carry tooltip_sections, the rest get [].
+// stat_sections is DISPLAY data only; stat_lines (below) stays the full bag for
+// generator scoring — do not swap one for the other.
+function stripLocString(html) {
+  if (typeof html !== 'string' || html.length === 0) return null
+  const text = html
+    .replace(/<svg[\s\S]*?<\/svg>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return text.length > 0 ? text : null
+}
+
+function extractStatSections(item) {
+  const bag = item.properties ?? {}
+  const sections = Array.isArray(item.tooltip_sections) ? item.tooltip_sections : []
+  const out = []
+  for (const section of sections) {
+    for (const attr of section.section_attributes ?? []) {
+      const stats = []
+      const addKeys = (keys, elevated) => {
+        for (const key of keys ?? []) {
+          const prop = bag[key]
+          stats.push({
+            key,
+            label: prop?.label ?? key.replace(/([a-z0-9])([A-Z])/g, '$1 $2'),
+            value: firstDefined(prop ?? {}, ['value', 'strValue']),
+            prefix: prop?.prefix ?? null,
+            postfix: prop?.postfix ?? null,
+            elevated,
+          })
+        }
+      }
+      // Elevated/important stats are the big emphasized ones in-game.
+      addKeys(attr.elevated_properties, true)
+      addKeys(attr.important_properties, true)
+      addKeys(attr.properties, false)
+      const description = stripLocString(attr.loc_string)
+      if (stats.length > 0 || description) {
+        out.push({ type: section.section_type ?? null, description, stats })
+      }
+    }
+  }
+  return out
+}
+
 function extractStatLines(item) {
   const props = item.properties ?? item.tooltip?.properties ?? {}
   return Object.entries(props).map(([key, value]) => ({
@@ -77,6 +128,8 @@ function pruneItem(item) {
     item_slot_type: firstDefined(item, ['item_slot_type', 'slot_type']),
     image: pickImage(item),
     stat_lines: extractStatLines(item),
+    stat_sections: extractStatSections(item),
+    is_active_item: item.is_active_item ?? false,
     active_description: extractAbilityText(item, 'active'),
     passive_description: extractAbilityText(item, 'passive'),
   }

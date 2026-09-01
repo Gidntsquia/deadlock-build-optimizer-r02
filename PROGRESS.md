@@ -1,5 +1,10 @@
 # PROGRESS — newest first, ≤25 lines per entry; past ~1,500 lines rotate all but newest ~10 entries verbatim to PROGRESS_ARCHIVE.md
 
+## 2026-09-01T17:45Z — orchestrator: T14 queued (ghost stats bug) + stat_sections/is_active_item in snapshots
+- User bug report: item sheet shows engine-internal "ghost stats" (AbilityUnitTargetLimit, ChannelMoveSpeed, …). Root cause: stat_lines is the raw property bag; the game only displays keys named in tooltip_sections.
+- fetch-data.mjs now emits `stat_sections` per item (game's own display definition: per-section labeled stats with prefix/postfix, elevated flags, plain-text descriptions stripped of HTML/SVG) + `is_active_item` (real flag; also closes the old null-descriptions gap). stat_lines UNCHANGED — still the scoring input, so generator behavior is unperturbed. Snapshots refetched + committed, 7.0MB.
+- Verified locally: `npm run build` clean, `npm test` 39 passed/2 skipped, `npm run gate:heldout` OK.
+- T14 queued after T13 (UI swap to stat_sections). Queue: T13 → T14 → T10 → T11 → T12.
 ## 2026-09-01T17:24Z — T9 done: high-elo (Phantom+) weighting of win-rate/usage
 - `HeroAnalytics` gained `high_badge_item_stats`/`high_badge_min` (already-committed data, no fetch needed). New `blendHighBadgeStat` in score.ts: `weight = 0.75 * min(highMatches/100, 1)` (ramps 0→0.75 as high-badge sample grows 0→100 matches, flat above), blends win rate and usage ratio as `weight*high + (1-weight)*overall`. Confidence damping (K=50 shrink-to-mean, unchanged formula) now applies to the blended rate + a same-weight-blended "effective matches" figure, in that order (blend then damp, as spec'd).
 - `scoreItem`'s inputs renamed to `overall*`/`high*` pairs; `index.ts` threads a second stats-by-id map + `maxHighBadgeItemMatches` through. `loaders.ts`/`setup.ts` untouched (generic JSON passthrough, no change needed).
