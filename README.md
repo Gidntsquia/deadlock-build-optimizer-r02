@@ -220,6 +220,20 @@ for items/heroes/analytics/personal matches; `src/validation/loadMatches.ts` for
 kept inside `src/validation/` for the same isolation reason as above) — no other runtime network
 calls except the item/hero image URLs the snapshots themselves store.
 
+### Offline image caching (`public/sw.js`, T24)
+
+A hand-written service worker — no new npm dependency — registered from `src/main.tsx` via a small
+guarded `registerServiceWorker()` helper (no-op when `serviceWorker` isn't in `navigator`, e.g.
+jsdom tests). It cache-firsts only `GET` requests where `request.destination === 'image'`; the app
+shell and `/data/**` snapshots are left to the normal browser HTTP cache. A repeat visit therefore
+still shows real item/hero artwork even once the external image host is unreachable, instead of
+falling back to the colored-tile state every time. One subtlety: every `<img>` this app renders is
+cross-origin without a `crossorigin` attribute, so its response is opaque (`status: 0`, `ok: false`)
+even on a genuine 200 — the fetch handler caches any response that comes back at all and only skips
+caching on an actual network failure, rather than gating on `response.ok`. Verified end-to-end by
+`e2e/offline-images.spec.ts`: load with the image host mocked, reload (now controlled, image cached),
+then reload again with the host blocked entirely — the previously-loaded image still renders.
+
 ### Design cohesion pass (T12)
 
 The build header is now a full-bleed teal title bar (`--header-teal`, `--ink` text, `Baloo 2` display
@@ -308,8 +322,8 @@ documented fallback rather than fabricated data:
 
 Pulled from `ROADMAP.md`'s "known gaps / stretch" list — none of these are implemented:
 per-hero archetype tuning beyond Infernus, situational/counter item swap suggestions, validation
-against additional top players, PWA caching of item images for true offline visuals, and build
-export in an in-game-importable format.
+against additional top players, and build export in an in-game-importable format. (PWA caching of
+item images was on this list and is now done — see below.)
 
 ## Acceptance checklist (`ROADMAP.md`)
 
